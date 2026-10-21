@@ -1,6 +1,7 @@
 /* Game engine: input, combat maths, physics loop and rendering. */
 
 import { Doll } from "./doll.js";
+import { Attacker } from "./attacker.js";
 import { Effects } from "./effects.js";
 import { Background } from "./background.js";
 import { audio } from "./audio.js";
@@ -29,6 +30,7 @@ export class Game {
       },
     });
     this.effects = new Effects();
+    this.attacker = new Attacker();
     this.background = new Background();
 
     this.weaponId = store.state.equipped || "kick";
@@ -49,7 +51,6 @@ export class Game {
     this.koDelay = 0;
     this.taunt = null;
     this.tauntTimer = 6 + Math.random() * 4;
-    this.swings = [];
     this.flash = 0;
     this.running = false;
     this.paused = false;
@@ -149,6 +150,11 @@ export class Game {
     return true;
   }
 
+  /** Play the equipped weapon once, without damage (weapon preview). */
+  showWeapon(id) {
+    return this.previewWeapon(id);
+  }
+
   setFace(image, meta) {
     this.doll.setFace(image, meta);
   }
@@ -231,52 +237,95 @@ export class Game {
     return clamp(this.cooldownRemaining(id) / weapon.cooldown, 0, 1);
   }
 
-  attack(id, x, y, { dragging = false } = {}) {
-    const weapon = WEAPON_BY_ID[id];
-    if (!weapon) return false;
-    if (this.cooldownRemaining(id) > 0) return false;
-    if (this.koActive) return false;
+  /** Screen-space scale so weapon rigs look identical on every device. */
+  get unit() {
+    return Math.min(this.width || 430, this.height || 780) / 430;
+  }
 
+  /** Resolve what the player aimed at, or null when they tapped the void. */
+  _resolveTarget(x, y, { dragging = false } = {}) {
     const shape = this.doll.hitTest(x, y, 46);
-    const head = this.doll.world?.head;
-    if (!shape) {
-      // generous fallback: taps near the doll still count
-      const cx = this.doll.basePosition.x + this.doll.root.ox;
-      const cy = this.doll.basePosition.y - 60 * this.doll.scale;
-      const dist = Math.hypot(x - cx, y - cy);
-      if (dist > 230 * this.doll.scale || dragging) return false;
-      // aim at the nearest limb anyway
-      let nearest = null;
-      let best = Infinity;
-      for (const s of this.doll.shapes || []) {
-        const d = Math.hypot(x - s.x, y - s.y);
-        if (d < best) {
-          best = d;
-          nearest = s;
-        }
-      }
-      if (!nearest) return false;
-      x = nearest.x;
-      y = nearest.y;
-      if (!this.doll.hitTest(x, y, 0)) {
-        // still apply: use the torso
-        const torso = this.doll.world.torso;
-        x = torso.wx;
-        y = torso.wy - 20;
+    if (shape) return { x: shape.x, y: shape.y, part: shape.part };
+
+    const cx = this.doll.basePosition.x + this.doll.root.ox;
+    const cy = this.doll.basePosition.y - 60 * this.doll.scale;
+    if (dragging || Math.hypot(x - cx, y - cy) > 240 * this.doll.scale) return null;
+
+    let nearest = null;
+    let best = Infinity;
+    for (const s of this.doll.shapes || []) {
+      const d = Math.hypot(x - s.x, y - s.y);
+      if (d < best) {
+        best = d;
+        nearest = s;
       }
     }
+    if (nearest) return { x: nearest.x, y: nearest.y, part: nearest.part };
+    const torso = this.doll.world?.torso;
+    if (!torso) return null;
+    return { x: torso.wx, y: torso.wy - 20 * this.doll.scale, part: "torso" };
+  }
 
-    const hitShape = this.doll.hitTest(x, y, 60) || { part: "torso", x, y };
-    const part = hitShape.part;
-    const hitX = hitShape.x ?? x;
-    const hitY = hitShape.y ?? y;
+  /**
+   * Swing a weapon. The rig is animated in first; damage is applied by
+   * `_landHit` when the weapon actually reaches the target.
+   */
+  attack(id, x, y, { dragging = false, preview = false } = {}) {
+    const weapon = WEAPON_BY_ID[id];
+    if (!weapon) return false;
+    if (!preview && this.cooldownRemaining(id) > 0) return false;
+    if (this.koActive) return false;
 
-    this.cooldowns[id] = weapon.cooldown * (this.rageTime > 0 ? 0.55 : 1);
+    const target = this._resolveTarget(x, y, { dragging });
+    if (!target) return false;
 
-    // damage maths
+    if (!preview) {
+      this.cooldowns[id] =
+        weapon.cooldown * (this.rageTime > 0 ? 0.55 : 1) + (weapon.swing || 0) * 0.15;
+    }
+    this.started = true;
+    this.hudDirty = true;
+
+    this.attacker.start(weapon, target, {
+      width: this.width,
+      height: this.height,
+      unit: this.unit,
+      onHit: (event) => {
+        if (preview) {
+          this.effects.dust(event.x, event.y, 4);
+          this.shake = Math.max(this.shake, 2);
+          return;
+        }
+        this._landHit(weapon, target, event);
+      },
+    });
+
+    // wind-up feedback: the swing whoosh before the impact
+    audio.sfx(weapon.motion === "projectile" ? "rocket" : "whoosh", { volume: 0.42 });
+    if (!preview) haptic(weapon.swing && weapon.swing > 700 ? "medium" : "light");
+    return true;
+  }
+
+  /** Show a weapon without dealing damage (used when equipping in the dock). */
+  previewWeapon(id) {
+    const weapon = WEAPON_BY_ID[id];
+    if (!weapon || this.koActive) return false;
+    const x = this.doll.basePosition.x + this.doll.root.ox;
+    const y = this.doll.basePosition.y - 40 * this.doll.scale;
+    return this.attack(id, x, y, { preview: true, dragging: true });
+  }
+
+  /** Damage maths + feedback, fired the moment the rig connects. */
+  _landHit(weapon, target, event) {
+    if (this.koActive) return;
+    const mult = event.mult ?? 1;
+    const part = target.part || "torso";
+    const hitX = event.x;
+    const hitY = event.y;
+
     const stunned = this.doll.stun > 0;
     const crit = Math.random() < this.store.critChance;
-    let damage = weapon.damage * this.store.damageMultiplier;
+    let damage = weapon.damage * mult * this.store.damageMultiplier;
     if (this.rageTime > 0) damage *= 2;
     if (stunned) damage *= 1.15;
     if (crit) damage *= 2.5;
@@ -294,7 +343,6 @@ export class Game {
     this.rage = clamp(this.rage + (crit ? 5.5 : 3.1), 0, 100);
     if (this.rage >= 100 && this.rageTime <= 0) this._activateRage();
 
-    // per-hit coins
     const coinGain = (damage / 14) * this.store.coinMultiplier;
     this._coinBuffer = (this._coinBuffer || 0) + coinGain;
     if (this._coinBuffer >= 1) {
@@ -304,9 +352,8 @@ export class Game {
       this.round.coins += whole;
     }
 
-    // feedback
-    const power = clamp(damage / 220, 0.5, 3);
-    this.doll.hurt(damage, { x: hitX, y: hitY, part }, weapon.knock, {
+    const power = clamp(damage / 220, 0.5, 3.2);
+    this.doll.hurt(damage, { x: hitX, y: hitY, part }, (weapon.knock || 1) * mult, {
       heavy: Boolean(weapon.stun),
     });
     if (weapon.stun) this.doll.stun = Math.max(this.doll.stun, weapon.stun);
@@ -318,6 +365,7 @@ export class Game {
       slap: "#ffc2d1",
       swing: "#ffd166",
       zap: "#a9e6ff",
+      foam: "#d8f4ff",
       boom: "#ffb37a",
     };
     this.effects.impact(hitX, hitY, {
@@ -327,43 +375,32 @@ export class Game {
     });
     this.effects.damageNumber(hitX, hitY - 22, damage, { crit });
     if (crit) {
-      this.effects.word(hitX, hitY - 58, "CRIT!", {
-        color: "#ffd84d",
-        size: 16,
-        life: 0.8,
-      });
+      this.effects.word(hitX, hitY - 58, "CRIT!", { color: "#ffd84d", size: 16, life: 0.8 });
     }
     if (weapon.style === "zap") this.effects.zap(hitX + 150, this.height * 0.2, hitX, hitY);
+    if (weapon.style === "foam") this.effects.foam(hitX, hitY);
     if (weapon.style === "boom") {
       this.effects.shockwave(hitX, hitY, "#ffcf7a");
-      this.effects.confetti(hitX, hitY, 14);
+      this.effects.confetti(hitX, hitY, 16);
+    }
+    if (weapon.id === "saw") {
+      this.effects.zap(hitX + 90, hitY - 40, hitX, hitY);
     }
 
-    this.swings.push({
-      emoji: weapon.emoji,
-      x: hitX,
-      y: hitY,
-      t: 0,
-      life: 0.34,
-      rot: (Math.random() - 0.5) * 0.8,
-      scale: weapon.style === "boom" ? 1.4 : 1,
-    });
+    this.shake = Math.max(this.shake, clamp(damage / 70, 2, 14) * (this.reduceMotion ? 0.35 : 1));
+    this.hitStop = Math.max(
+      this.hitStop,
+      weapon.style === "boom" ? 0.12 : clamp(damage / 1900, 0.02, 0.08)
+    );
 
-    this.shake = Math.max(this.shake, clamp(damage / 70, 2, 13) * (this.reduceMotion ? 0.35 : 1));
-    this.hitStop = Math.max(this.hitStop, weapon.style === "boom" ? 0.11 : clamp(damage / 1900, 0.02, 0.075));
-
-    audio.sfx(weapon.sound, { volume: 0.9, pitch: 0.94 + Math.random() * 0.14 });
-    if (weapon.style === "swing" || weapon.style === "boom") audio.sfx("whoosh", { volume: 0.5 });
+    audio.sfx(weapon.sound, { volume: 0.95, pitch: 0.94 + Math.random() * 0.14 });
     if (weapon.stun) audio.voice("special", { chance: 0.65 });
     else audio.voice("hit", { chance: part === "head" ? 0.55 : 0.32 });
 
     haptic(power > 1.8 ? "heavy" : power > 1 ? "medium" : "light");
 
     if (this.hp <= 0) this._beginKo();
-
     this.hudDirty = true;
-    this.started = true;
-    return true;
   }
 
   _activateRage() {
@@ -510,6 +547,7 @@ export class Game {
     }
 
     this.doll.update(step);
+    this.attacker.update(realDt);
     this.effects.update(dt);
     this.background.update(realDt, this.pointer);
 
@@ -517,11 +555,6 @@ export class Game {
     if (this.shake < 0.15) this.shake = 0;
     this.flash = Math.max(0, this.flash - realDt * 1.6);
     this.timeScale += (1 - this.timeScale) * Math.min(1, realDt * 3.2);
-
-    for (let i = this.swings.length - 1; i >= 0; i -= 1) {
-      this.swings[i].t += realDt;
-      if (this.swings[i].t >= this.swings[i].life) this.swings.splice(i, 1);
-    }
 
     this.hudTimer += realDt;
     if (this.hudDirty || this.hudTimer > 0.1) {
@@ -566,8 +599,8 @@ export class Game {
 
     // pointer ring below the doll
     this.doll.draw(ctx);
+    this.attacker.draw(ctx, { unit: this.unit });
     this.effects.draw(ctx);
-    this._drawSwings(ctx);
     this._drawTaunt(ctx);
     ctx.restore();
 
@@ -597,23 +630,6 @@ export class Game {
       ctx.globalAlpha = 0.18;
       ctx.fillStyle = "#0a0b14";
       ctx.fillRect(0, 0, w, h);
-      ctx.restore();
-    }
-  }
-
-  _drawSwings(ctx) {
-    for (const s of this.swings) {
-      const p = s.t / s.life;
-      const scale = (1.9 - p * 0.9) * s.scale;
-      ctx.save();
-      ctx.globalAlpha = 1 - p * p;
-      ctx.translate(s.x, s.y);
-      ctx.rotate(s.rot + p * 0.9);
-      ctx.scale(scale, scale);
-      ctx.font = `40px "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", system-ui, sans-serif`;
-      ctx.textAlign = "center";
-      ctx.textBaseline = "middle";
-      ctx.fillText(s.emoji, 0, 0);
       ctx.restore();
     }
   }

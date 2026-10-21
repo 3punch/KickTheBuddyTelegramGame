@@ -5,6 +5,7 @@ import { t, fmt } from "./i18n.js";
 import { audio } from "./audio.js";
 import { haptic } from "./telegram.js";
 import { el, card, button, toast, setModalBody, sectionTitle } from "./ui.js";
+import { weaponIcon } from "./weaponry.js";
 
 const UPGRADE_KEY = { power: "power", crit: "crit", coins: "coinBonus", tough: "toughness" };
 
@@ -59,11 +60,13 @@ export function buildShop(ctx) {
       const owned = store.owns(weapon.id);
       const equipped = store.state.equipped === weapon.id;
       const affordable = store.coins >= weapon.price;
+      const icon = weaponIcon(weapon.rig, 110);
       grid.append(
         card({
           title: weapon.name,
-          subtitle: `${weapon.emoji} ${Math.round(weapon.damage)} dmg · ${(weapon.cooldown / 1000).toFixed(2)}s`,
-          icon: "",
+          subtitle: `${Math.round(weapon.damage)} dmg · ${(weapon.cooldown / 1000).toFixed(2)}s`,
+          thumb: icon || null,
+          icon: icon ? "" : weapon.emoji,
           selected: equipped,
           locked: !owned,
           price: owned

@@ -138,6 +138,33 @@ export class Effects {
     }
   }
 
+  foam(x, y) {
+    for (let i = 0; i < 22; i += 1) {
+      this._push({
+        type: "foam",
+        x: x + rand(-16, 16),
+        y: y + rand(-16, 16),
+        vx: rand(-140, 140),
+        vy: rand(-190, -20),
+        g: 120,
+        life: rand(0.5, 1.1),
+        size: rand(5, 14),
+        color: "rgba(232,248,255,0.9)",
+        drag: 2.2,
+      });
+    }
+    this._push({
+      type: "ring",
+      x,
+      y,
+      life: 0.42,
+      size: 8,
+      growth: 220,
+      color: "#d8f4ff",
+      width: 4,
+    });
+  }
+
   confetti(x, y, count = 28) {
     const colors = ["#ffd166", "#ff6b6b", "#4da3ff", "#3ddc97", "#a06bff", "#fff"];
     for (let i = 0; i < count; i += 1) {
@@ -244,6 +271,13 @@ export class Effects {
           ctx.beginPath();
           ctx.arc(p.x, p.y, r, 0, TAU);
           ctx.stroke();
+          break;
+        }
+        case "foam": {
+          ctx.fillStyle = p.color;
+          ctx.beginPath();
+          ctx.arc(p.x, p.y, p.size * (0.7 + t * 0.9), 0, TAU);
+          ctx.fill();
           break;
         }
         case "dust": {

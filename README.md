@@ -13,13 +13,20 @@ voice** — from inside the game (Studio) or by dropping files into `web/assets/
   <img src="docs/preview-face.png" width="240" alt="Face swapped for a photo" />
 </p>
 
+<p align="center">
+  <img src="docs/swing-punch-windup.png" width="200" alt="Fist winding up" />
+  <img src="docs/swing-punch-impact.png" width="200" alt="Fist connecting" />
+  <img src="docs/swing-anvil-impact.png" width="200" alt="Anvil landing" />
+</p>
+<p align="center"><sub>Weapons are real actors: wind-up → contact → damage. <a href="docs/weapons-sheet.png">Full weapon sheet</a></sub></p>
+
 ---
 
 ## Highlights
 
 | Area | What you get |
 | --- | --- |
-| **Gameplay** | Spring-driven ragdoll with per-limb physics, 9 weapons (kick → chalk bomb), critical hits, combo multiplier, stun, rage mode, K.O. animations, screen shake, hit-stop |
+| **Gameplay** | Spring-driven ragdoll with per-limb physics, **18 hand-drawn weapons that visibly fly in, wind up and connect before the damage lands**, critical hits, combo multiplier, stun, rage mode, K.O. animations, screen shake, hit-stop |
 | **Progression** | Coins per damage + K.O. bonus, 4 permanent upgrade tracks (power, crit, coin bonus, toughness), weapon unlocks, persistent save (localStorage + Telegram CloudStorage) |
 | **Customisation** | Face swap (cartoon, drop-in photos or in-app upload), background swap (drawn classroom, drop-in images or upload), full-body doll replacement, voice selection (4 built-in cartoon voices, drop-in voice packs, or record your own per event) |
 | **Telegram** | Verified `initData`, Mini App button + menu button, webhook **and** long-polling modes, haptics, cloud save, native share, bot commands (`/play /top /me /help`) in EN/AR/DE/ES |
@@ -112,7 +119,11 @@ Details, tuning keys and the voice-event naming rules: **[docs/ASSETS.md](docs/A
 
 ## Playing
 
-* **Tap / drag on the Professor** — swing the selected weapon where you touch.
+* **Tap / drag on the Professor** — the selected weapon (fist, shoe, bat, pan,
+  chainsaw…) flies into frame, winds up and connects *where you touch*; damage
+  lands on contact, not on tap.
+* **Weapon preview** — tapping a weapon in the dock plays its animation once
+  without hurting anyone, so you always know what you're about to swing.
 * **Weapon dock** — tap an owned weapon to equip it; locked ones open the Shop.
 * **Keyboard** (desktop) — `1…9` switch weapons, `Space` attack.
 * **Combo** — every hit inside 2.1 s raises the multiplier (up to ×1.8) and the

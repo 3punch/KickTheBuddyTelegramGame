@@ -232,6 +232,62 @@ class AudioEngine {
         this._tone({ type: "sine", freq: 110, to: 28, dur: 0.8, gain: 0.65 * v });
         this._tone({ type: "triangle", freq: 60, to: 30, dur: 0.6, gain: 0.3 * v });
         break;
+      case "thud":
+        this._tone({ type: "sine", freq: 92 * pitch, to: 38, dur: 0.3, gain: 0.62 * v });
+        this._tone({ type: "triangle", freq: 150 * pitch, to: 60, dur: 0.16, gain: 0.3 * v });
+        this._noise({ dur: 0.14, gain: 0.28 * v, freq: 600, to: 120 });
+        break;
+      case "smack":
+        this._noise({ dur: 0.14, gain: 0.42 * v, type: "bandpass", freq: 900, to: 260, q: 2.4 });
+        this._tone({ type: "triangle", freq: 240 * pitch, to: 120, dur: 0.12, gain: 0.2 * v });
+        break;
+      case "saw":
+        this._tone({
+          type: "sawtooth",
+          freq: 92 * pitch,
+          to: 104 * pitch,
+          dur: 0.42,
+          gain: 0.2 * v,
+          filter: { type: "bandpass", freq: 900, q: 2 },
+        });
+        this._tone({ type: "square", freq: 46, to: 52, dur: 0.42, gain: 0.14 * v });
+        this._noise({ dur: 0.4, gain: 0.16 * v, type: "bandpass", freq: 2400, q: 1.4 });
+        break;
+      case "fizz":
+        this._noise({ dur: 0.55, gain: 0.3 * v, type: "highpass", freq: 1800, to: 5200 });
+        this._tone({ type: "triangle", freq: 640 * pitch, to: 220, dur: 0.3, gain: 0.08 * v });
+        break;
+      case "chord":
+        [196, 246.9, 293.7, 392].forEach((f, i) => {
+          this._tone({
+            type: "sawtooth",
+            freq: f * pitch,
+            dur: 0.42,
+            gain: 0.14 * v,
+            delay: i * 0.008,
+            filter: { type: "lowpass", freq: 2200, to: 500 },
+          });
+        });
+        this._noise({ dur: 0.2, gain: 0.16 * v, type: "highpass", freq: 2600 });
+        break;
+      case "rocket":
+        this._tone({
+          type: "sawtooth",
+          freq: 220 * pitch,
+          to: 900,
+          dur: 0.36,
+          gain: 0.14 * v,
+          filter: { type: "bandpass", freq: 600, to: 2400, q: 1.6 },
+        });
+        this._noise({ dur: 0.34, gain: 0.2 * v, type: "bandpass", freq: 400, to: 2600, q: 1.2 });
+        break;
+      case "smash":
+        this._noise({ dur: 0.6, gain: 0.5 * v, freq: 1600, to: 80 });
+        this._tone({ type: "sine", freq: 130, to: 32, dur: 0.7, gain: 0.7 * v });
+        [1560, 2320, 3120].forEach((f, i) =>
+          this._tone({ type: "triangle", freq: f * pitch, dur: 0.34, gain: 0.05 * v, delay: i * 0.01 })
+        );
+        break;
       case "whoosh":
         this._noise({ dur: 0.22, gain: 0.16 * v, type: "bandpass", freq: 350, to: 2200, q: 1.6 });
         break;

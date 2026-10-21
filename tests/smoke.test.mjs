@@ -192,11 +192,13 @@ test("client boots, renders frames and opens every sheet", async () => {
     const game = app.game;
     const { x, y } = game.doll.basePosition;
 
-    // attack a few times with different weapons
-    for (const id of ["kick", "punch", "slap"]) {
+    // attack a few times with different weapons — damage lands when the rig hits
+    for (const id of ["kick", "punch", "slap", "bat", "pan"]) {
       game.cooldowns[id] = 0;
       const hit = game.attack(id, x, y - 80);
-      assert.equal(hit, true, `${id} should connect`);
+      assert.equal(hit, true, `${id} should launch`);
+      assert.ok(game.attacker.active, `${id} rig is on screen`);
+      await new Promise((resolve) => setTimeout(resolve, 620));
     }
     assert.ok(game.hp < game.maxHp, "hp decreased");
     assert.ok(game.round.damage > 0, "damage recorded");
@@ -206,11 +208,18 @@ test("client boots, renders frames and opens every sheet", async () => {
     game.hp = 1;
     game.cooldowns.kick = 0;
     game.attack("kick", x, y - 120);
+    await new Promise((resolve) => setTimeout(resolve, 700));
     assert.equal(game.koActive, true, "KO started");
     await new Promise((resolve) => setTimeout(resolve, 3200));
     assert.equal(game.koActive, false, "round restarted after KO");
     assert.equal(game.hp, game.maxHp, "hp refilled");
     assert.ok(game.roundNumber >= 2, "round counter advanced");
+
+    // a preview swing must never deal damage
+    const hpBefore = game.hp;
+    game.previewWeapon("saw");
+    await new Promise((resolve) => setTimeout(resolve, 500));
+    assert.equal(game.hp, hpBefore, "preview swing deals no damage");
 
     // every sheet builds without throwing
     for (const id of ["btnShop", "btnStudio", "btnSettings", "btnBoard"]) {

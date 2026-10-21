@@ -145,6 +145,31 @@ recordings automatically. **▶ Test** previews the currently selected voice.
 * `BUILTIN_VOICES` — pitch/rate presets for the synth voices.
 * `coinReward(damage, coinBonusLevel, koBonus)` — payout formula.
 
-Emoji art is used for weapon icons and swing effects, so adding a weapon is a
-five-line change. New weapons automatically appear in the Shop, the dock and the
-keyboard shortcuts (`1…9`).
+### Adding a weapon
+
+Weapons are canvas actors ("rigs"), not images. A weapon entry looks like this:
+
+```js
+{
+  id: "fish", name: "Wet fish", emoji: "🐟",
+  rig: "fish",                 // drawing function in web/js/weaponry.js
+  motion: "swing",             // swing | thrust | drop | toss | projectile | sweep
+  swing: 430,                  // animation length in ms (damage lands at the end)
+  hits: [{ at: 0.7, mult: 1 }],// multiple timed hits per swing (chainsaw = 3)
+  contact: [-16, 0],           // point of the rig that touches the target
+  fallRot: -0.95,              // only for "drop": fixed orientation while falling
+  damage: 230, cooldown: 520, price: 2400, knock: 1.2, stun: 0,
+  style: "slap",               // palette for the impact particles
+  sound: "smack", names: { ar: "سمكة مبللة", de: "Nasser Fisch", es: "Pescado mojado" },
+}
+```
+
+* To draw a new weapon, add a function to `RIGS` in `web/js/weaponry.js`. Author
+  it so the striking end sits near `(0, 0)` with the handle along `+x`; the
+  attacker rotates and positions it automatically.
+* `web/js/attacker.js` holds the motion profiles (`swing`, `thrust`, `drop`,
+  `toss`, `projectile`, `sweep`) — keyframed distance, rotation, scale and alpha.
+* Dock and shop icons are rasterised from the rig at runtime, so a new weapon
+  needs no image assets.
+* `node scripts/render-weapons.mjs` renders the full sheet plus mid-swing frames
+  to `tmp/` for review.

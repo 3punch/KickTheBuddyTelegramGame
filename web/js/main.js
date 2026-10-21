@@ -13,6 +13,7 @@ import { fetchConfig, loadImage, findAsset } from "./assets.js";
 import { Game } from "./game.js";
 import { audio } from "./audio.js";
 import { WEAPONS, WEAPON_BY_ID, BUILTIN_VOICES, weaponLabel } from "./content.js";
+import { weaponIcon } from "./weaponry.js";
 import { openModal, closeModal, initModal, toast, el, modalOpen } from "./ui.js";
 import { buildShop } from "./shop.js";
 import { buildStudio, cancelRecording } from "./studio.js";
@@ -177,8 +178,11 @@ function renderDock() {
       "aria-label": weapon.name,
       onclick: () => onWeaponClick(weapon.id),
     });
+    const icon = weaponIcon(weapon.rig, 72);
     button.innerHTML = `
-      <span class="emoji">${weapon.emoji}</span>
+      ${icon
+        ? `<img class="wicon" src="${icon}" alt="" draggable="false" />`
+        : `<span class="emoji">${weapon.emoji}</span>`}
       <span class="wname">${weaponLabel(weapon, displayLang())}</span>
       <div class="cool"></div>
     `;
@@ -214,6 +218,7 @@ function onWeaponClick(id) {
   audio.sfx("click");
   haptic("select");
   renderDockStates();
+  game.previewWeapon(id);
   if (dom.weaponLabel) dom.weaponLabel.textContent = `${weapon.emoji} ${weaponLabel(weapon, displayLang())}`;
 }
 

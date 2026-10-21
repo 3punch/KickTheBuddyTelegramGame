@@ -406,8 +406,8 @@ canvas#game {
 .weapon {
   position: relative;
   flex: 0 0 auto;
-  width: 58px;
-  height: 60px;
+  width: 60px;
+  height: 62px;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -427,6 +427,15 @@ canvas#game {
   line-height: 1;
   filter: drop-shadow(0 3px 5px rgba(0, 0, 0, 0.4));
   transition: transform 0.15s ease;
+}
+
+.weapon .wicon {
+  width: 38px;
+  height: 38px;
+  object-fit: contain;
+  filter: drop-shadow(0 3px 5px rgba(0, 0, 0, 0.45));
+  transition: transform 0.15s ease;
+  pointer-events: none;
 }
 
 .weapon .wname {
@@ -449,11 +458,13 @@ canvas#game {
   color: #ffe08a;
 }
 
-.weapon.active .emoji {
+.weapon.active .emoji,
+.weapon.active .wicon {
   transform: scale(1.12);
 }
 
-.weapon.locked .emoji {
+.weapon.locked .emoji,
+.weapon.locked .wicon {
   filter: grayscale(1) brightness(0.6);
 }
 
