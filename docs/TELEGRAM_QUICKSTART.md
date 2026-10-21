@@ -21,6 +21,43 @@ Optional but nice, all in BotFather:
 
 ---
 
+## 1b. Or skip steps 2–3 entirely: one command
+
+If `cloudflared` or `ngrok` is installed, this does everything — opens the tunnel,
+detects the HTTPS URL, generates the webhook secret, registers the webhook, sets
+the menu button and boots the server:
+
+```bash
+npm run live
+```
+
+```powershell
+# Windows: install a tunnel tool once
+winget install --id Cloudflare.cloudflared
+# (or) choco install ngrok
+
+npm run live                 # auto-detects the tool
+npm run live -- --save       # also writes PUBLIC_URL + WEBHOOK_SECRET into .env
+npm run live -- --tool ngrok # force ngrok
+npm run live -- --url https://kick.example.com   # you already have HTTPS
+```
+
+You get this and nothing else to do:
+
+```
+  ✔ Live on Telegram
+  ──────────────────────────────────────────────
+  Public URL : https://flat-moon-1234.trycloudflare.com
+  Bot        : @KickTheProfessorBot (kick the professor)
+  Webhook    : https://flat-moon-1234.trycloudflare.com/telegram/webhook/<secret>
+  ──────────────────────────────────────────────
+  1. Open https://t.me/KickTheProfessorBot in Telegram
+  2. Send /start, then tap ▶️ Play now (or the 🥊 menu button)
+```
+
+Keep the terminal open while you play; `Ctrl+C` stops the server **and** the tunnel.
+The steps below are the manual equivalent if you prefer to control each part.
+
 ## 2. Give it an HTTPS address (2 min)
 
 ### Fastest: a tunnel to your machine
@@ -138,6 +175,39 @@ Want a permanent shareable link like `t.me/your_bot/play`? In BotFather:
 | Mic recording blocked | Needs HTTPS (works inside Telegram, not on plain `http://`). |
 
 ---
+
+## Putting your own photo / background / voice in
+
+Put the files anywhere (Desktop is fine) and import them — no manual resizing:
+
+```powershell
+# Windows
+npm run assets:add -- face C:\Users\you\Desktop\prof.jpg --id prof --remove-bg --tight
+npm run assets:add -- background C:\Users\you\Desktop\class.jpg --id lab
+npm run assets:add -- doll C:\Users\you\Desktop\buddy.png --id buddy
+npm run assets:add -- voice prof hit  C:\voice\hit-1.mp3 --name "Prof Pack" --language en
+npm run assets:list
+```
+
+```bash
+# macOS / Linux
+npm run assets:add -- face ~/Desktop/prof.jpg --id prof --remove-bg --tight
+```
+
+What it does:
+
+* resizes + converts (faces/dolls → PNG, backgrounds → JPEG),
+* `--remove-bg` deletes a flat photo background (flood fill from the edges, so
+  colours inside the subject survive) and `--tight` crops to the head,
+* writes the metadata JSON (`scale`, `offsetX/Y`, `dim`, `pitch`, …),
+* rebuilds `manifest.json`, so the asset appears in **🎨 Studio** on the next
+  reload — and can be made the default for everyone by committing `web/assets/`.
+
+Fine-tuning a face that sits too low/high:
+
+```bash
+npm run assets:add -- face prof.jpg --id prof --scale 1.06 --offset-y -0.04 --rotate 0
+```
 
 ## Handy
 

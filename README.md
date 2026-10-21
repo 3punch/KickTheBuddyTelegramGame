@@ -42,6 +42,7 @@ The app is a plain web page — the Telegram SDK is optional at runtime.
 ```bash
 npm install          # dev-only deps (jsdom, @napi-rs/canvas) — runtime has zero deps
 npm start            # → http://localhost:8080
+npm run live         # ...or: HTTPS tunnel + webhook + menu button in one command
 ```
 
 Open `http://localhost:8080` in any browser (phone or desktop) and it plays
@@ -194,9 +195,13 @@ Scores are tied to a verified Telegram user; the client sends
 ```bash
 npm start                 # production-ish server
 npm run dev               # same, with --watch
+npm run live              # HTTPS tunnel + webhook + menu button, one command
 npm test                  # headless smoke test (boots the client in jsdom)
 npm run assets            # rescan web/assets → manifest.json
+npm run assets:add -- face prof.jpg --id prof --remove-bg   # import art/voice
+npm run assets:list       # what is installed right now
 node scripts/render-preview.mjs   # render docs PNGs (needs @napi-rs/canvas)
+node scripts/render-weapons.mjs   # weapon contact sheet + swing frames
 ```
 
 `npm test` boots the entire client with a stub canvas/audio layer and asserts
