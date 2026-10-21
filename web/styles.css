@@ -1205,10 +1205,57 @@ html[dir="rtl"] .card {
     transform: translateX(-50%);
     width: min(560px, calc(100% - 24px));
   }
-  .hud-block,
   .hp-block {
     max-width: 620px;
     margin: 0 auto;
     width: 100%;
+  }
+}
+
+/* Desktop: frame the game like a phone so the composition stays intact. */
+@media (min-width: 860px) and (min-height: 620px) {
+  body {
+    display: grid;
+    place-items: center;
+    background:
+      radial-gradient(60% 55% at 50% 0%, #1e2547 0%, transparent 60%),
+      repeating-linear-gradient(135deg, rgba(255, 255, 255, 0.014) 0 2px, transparent 2px 9px),
+      linear-gradient(180deg, #0a0d18 0%, #05070e 100%);
+  }
+
+  .app {
+    position: relative;
+    inset: auto;
+    width: min(440px, calc(100vw - 48px));
+    height: min(880px, calc(100vh - 48px));
+    border-radius: 34px;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    box-shadow:
+      0 40px 90px rgba(0, 0, 0, 0.72),
+      0 0 0 10px rgba(255, 255, 255, 0.022),
+      inset 0 0 0 1px rgba(0, 0, 0, 0.4);
+    overflow: hidden;
+  }
+
+  .app::after {
+    content: "";
+    position: absolute;
+    top: 10px;
+    left: 50%;
+    width: 92px;
+    height: 5px;
+    border-radius: 99px;
+    transform: translateX(-50%);
+    background: rgba(255, 255, 255, 0.14);
+    pointer-events: none;
+    z-index: 90;
+  }
+
+  .hud {
+    padding-top: 26px;
+  }
+
+  .modal {
+    border-radius: 26px;
   }
 }

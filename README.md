@@ -28,15 +28,24 @@ voice** — from inside the game (Studio) or by dropping files into `web/assets/
 
 ---
 
-## Quick start
+## See it on the web (no Telegram needed)
+
+The app is a plain web page — the Telegram SDK is optional at runtime.
 
 ```bash
-npm install          # only dev deps (jsdom, @napi-rs/canvas) — runtime has zero deps
+npm install          # dev-only deps (jsdom, @napi-rs/canvas) — runtime has zero deps
 npm start            # → http://localhost:8080
 ```
 
-Open the URL in a browser: the game runs in **preview mode** (no bot required,
-leaderboard uses a throwaway guest identity, everything else works).
+Open `http://localhost:8080` in any browser (phone or desktop) and it plays
+immediately in **preview mode**: no bot token required, the leaderboard uses a
+throwaway guest identity, everything else works — attacking, weapons, coins,
+upgrades, Studio face/background/voice swaps. On a desktop browser the game is
+framed like a phone so the layout stays true to the Telegram viewport.
+
+To share it with someone, expose the port with a tunnel (`ngrok http 8080`,
+`cloudflared tunnel --url http://localhost:8080`) — the same URL doubles as your
+Mini App URL once `PUBLIC_URL` is set.
 
 ### Connect it to Telegram
 
