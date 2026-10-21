@@ -80,6 +80,8 @@ Mini App URL once `PUBLIC_URL` is set.
 > No public URL? Set `USE_POLLING=1` to drive the bot through `getUpdates`
 > instead of a webhook (the Mini App itself still needs HTTPS).
 
+Step-by-step walkthrough (BotFather → HTTPS → `.env` → play):
+**[docs/TELEGRAM_QUICKSTART.md](docs/TELEGRAM_QUICKSTART.md)**
 Full deployment notes: **[docs/DEPLOY.md](docs/DEPLOY.md)**.
 
 ---
