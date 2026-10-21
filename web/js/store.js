@@ -9,7 +9,7 @@ const CLOUD_KEY = "ktp-save-v1";
 const defaults = () => ({
   v: 1,
   coins: 250,
-  owned: ["kick", "punch", "slap"].filter(() => false).concat(["kick", "punch"]),
+  owned: ["kick", "punch"],
   equipped: "kick",
   upgrades: { power: 0, crit: 0, coins: 0, tough: 0 },
   cosmetics: {

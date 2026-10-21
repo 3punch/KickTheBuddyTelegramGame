@@ -414,7 +414,7 @@ class AudioEngine {
     if (!this.ctx || this.musicOn) return;
     this.musicOn = true;
     this.musicBus.gain.cancelScheduledValues(this.ctx.currentTime);
-    this.musicBus.gain.setTargetAtTime(0.5, this.ctx.currentTime, 1.2);
+    this.musicBus.gain.setTargetAtTime(0.32, this.ctx.currentTime, 1.2);
     this.step = 0;
     const tick = () => {
       if (!this.musicOn || !this.ctx) return;
