@@ -227,8 +227,25 @@ test("client boots, renders frames and opens every sheet", async () => {
       assert.ok(button, `${id} exists`);
       button.dispatchEvent(new window.MouseEvent("click", { bubbles: true }));
       await new Promise((resolve) => setTimeout(resolve, 120));
-      assert.equal(window.document.getElementById("modalRoot").hidden, false, `${id} opens the sheet`);
-      assert.ok(window.document.getElementById("modalBody").children.length > 0, `${id} renders content`);
+      const root = window.document.getElementById("modalRoot");
+      const body = window.document.getElementById("modalBody");
+      assert.equal(root.hidden, false, `${id} opens the sheet`);
+      assert.ok(body.children.length > 0, `${id} renders content`);
+
+      if (id === "btnShop") {
+        // the long list that used to be un-scrollable
+        const cards = body.querySelectorAll(".card");
+        const { WEAPONS } = await import("../web/js/content.js");
+        assert.equal(cards.length, WEAPONS.length, "every weapon is listed in the shop");
+        const upgradesTab = [...body.querySelectorAll(".tab")].find(
+          (tab) => tab.textContent === "Upgrades"
+        );
+        assert.ok(upgradesTab, "upgrades tab exists");
+        upgradesTab.dispatchEvent(new window.MouseEvent("click", { bubbles: true }));
+        await new Promise((resolve) => setTimeout(resolve, 80));
+        assert.equal(body.querySelectorAll(".field").length, 4, "four upgrade tracks render");
+      }
+
       app.closeModal();
       await new Promise((resolve) => setTimeout(resolve, 60));
     }
