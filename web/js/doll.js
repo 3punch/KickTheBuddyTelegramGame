@@ -19,6 +19,10 @@ export function roundRect(ctx, x, y, w, h, r) {
   ctx.closePath();
 }
 
+function groundLimitForImage(doll) {
+  return 12 * doll.scale;
+}
+
 const COLORS = {
   skin: "#f7c9a3",
   skinShade: "#e2a97e",
@@ -177,12 +181,16 @@ export class Doll {
   /* ── layout ──────────────────────────────────────────────────────────── */
 
   resize(width, height) {
+    this.canvasHeight = height;
     const targetHeight = clamp(height * 0.55, 250, 600);
     const natural = this.B.headR * 2 + this.B.torso + this.B.thigh + this.B.shin;
     this.scale = targetHeight / natural;
     this.basePosition.x = width / 2;
     this.basePosition.y = height * 0.475;
-    this.groundY = this.basePosition.y + (this.B.thigh + this.B.shin + this.B.foot) * this.scale * 0.62;
+    // Feet level: hips + thigh + shin + a sliver of shoe, so both the drawn
+    // body and a cut-out photo stand on the classroom floor line.
+    this.groundY =
+      this.basePosition.y + (this.B.thigh + this.B.shin + this.B.foot * 0.35) * this.scale;
   }
 
   reset() {
@@ -268,7 +276,10 @@ export class Doll {
       r.vx *= 1 - Math.min(1, 1.4 * step);
       r.angle += r.vAngle * step;
       r.vAngle *= 1 - Math.min(1, 1.1 * step);
-      const groundLimit = this.groundY - this.basePosition.y - this.B.torso * this.scale * 0.1;
+      const cutout = Boolean(this.dollImage);
+      const groundLimit = cutout
+        ? 14 * this.scale
+        : this.groundY - this.basePosition.y - this.B.torso * this.scale * 0.1;
       if (r.oy > groundLimit) {
         r.oy = groundLimit;
         if (Math.abs(r.vy) > 130) {
@@ -280,10 +291,23 @@ export class Doll {
         r.vx *= 0.86;
         r.vAngle *= 0.84;
         // lie flat
-        const target = r.angle > 0 ? 1.48 : -1.48;
+        const target = r.angle > 0 ? (cutout ? 1.2 : 1.48) : cutout ? -1.2 : -1.48;
         r.angle = lerp(r.angle, target, Math.min(1, 6 * step));
       }
-      r.ox = clamp(r.ox, -110 * this.scale, 110 * this.scale);
+      const travel = this.dollImage ? 60 * this.scale : 110 * this.scale;
+      r.ox = clamp(r.ox, -travel, travel);
+      if (this.dollImage) {
+        // a photo body pivots on its feet: keep the tumble readable on screen
+        const limit = 1.02;
+        if (r.angle > limit) {
+          r.angle = limit;
+          r.vAngle *= -0.2;
+        } else if (r.angle < -limit) {
+          r.angle = -limit;
+          r.vAngle *= -0.2;
+        }
+        r.oy = clamp(r.oy, -40 * this.scale, groundLimitForImage(this));
+      }
     } else {
       // knockback spring back to the standing spot
       r.vx += (-r.ox * 190 - r.vx * 20) * step;
@@ -351,7 +375,7 @@ export class Doll {
       world[key] = n;
     }
     this.world = world;
-    this.shapes = this._buildShapes();
+    this.shapes = this.dollImage ? this._imageShapes() || this._buildShapes() : this._buildShapes();
   }
 
   _buildShapes() {
@@ -445,6 +469,14 @@ export class Doll {
       });
     }
 
+    if (this.dollImage) {
+      // a photo body has no physics limbs, so exaggerate the whole-body recoil
+      r.vx *= 1.45;
+      r.vAngle *= 1.5;
+      this.squash.vx += (Math.random() < 0.5 ? -1 : 1) * 2.2;
+      this.squash.vy -= 1.6;
+    }
+
     if (heavy) {
       this.stun = Math.max(this.stun, 0.5);
       this.expression = "dizzy";
@@ -459,9 +491,10 @@ export class Doll {
     this.reviveTimer = duration;
     this.stun = 0;
     const r = this.root;
-    r.vy = -420;
-    r.vx = (Math.random() < 0.5 ? -1 : 1) * 210;
-    r.vAngle = (Math.random() < 0.5 ? -1 : 1) * 5.5;
+    const cutout = Boolean(this.dollImage);
+    r.vy = cutout ? -260 : -420;
+    r.vx = (Math.random() < 0.5 ? -1 : 1) * (cutout ? 120 : 210);
+    r.vAngle = (Math.random() < 0.5 ? -1 : 1) * (cutout ? 3.2 : 5.5);
     for (const key of this.order) {
       const n = this.nodes[key];
       n.vel += (Math.random() - 0.5) * 13;
@@ -490,7 +523,14 @@ export class Doll {
     const w = this.world;
     const r = this.root;
 
-    // shadow
+    // shadow (a cut-out body draws its own, tight to its feet)
+    if (this.dollImage) {
+      ctx.save();
+      this._drawImageDoll(ctx);
+      ctx.restore();
+      this._drawStunStars(ctx);
+      return;
+    }
     const shadowAlpha = this.ragdoll ? 0.3 : 0.34;
     ctx.save();
     ctx.globalAlpha = shadowAlpha;
@@ -514,13 +554,6 @@ export class Doll {
     ctx.translate(w.root.wx, w.root.wy);
     ctx.scale(this.squash.x, this.squash.y);
     ctx.translate(-w.root.wx, -w.root.wy);
-
-    if (this.dollImage) {
-      this._drawImageDoll(ctx);
-      ctx.restore();
-      this._drawStunStars(ctx);
-      return;
-    }
 
     const outline = Math.max(2, 2.6 * s);
     ctx.lineJoin = "round";
@@ -1099,21 +1132,99 @@ export class Doll {
     }
   }
 
-  _drawImageDoll(ctx) {
+  /** Geometry of the cut-out body in canvas space (feet-anchored). */
+  imageRect() {
     const img = this.dollImage;
+    if (!img) return null;
     const meta = this.dollMeta || {};
-    const height = (meta.height || 520) * this.scale * 0.72;
-    const root = this.world.root;
-    const pivotY = meta.pivotY ?? 0.5;
-    ctx.save();
-    ctx.translate(root.wx, root.wy + height * (0.5 - pivotY));
-    if (img) {
-      const ratio = (img.naturalWidth || img.width || 1) / (img.naturalHeight || img.height || 1);
-      const width = height * ratio;
-      ctx.drawImage(img, -width / 2, -height / 2, width, height);
-    } else {
+    const naturalRatio =
+      (img.naturalWidth || img.width || 1) / (img.naturalHeight || img.height || 1);
+    const ratio = meta.aspect || naturalRatio;
+    // `height` may be a fraction of the canvas (<= 2) or legacy design units.
+    const h =
+      meta.height !== undefined && meta.height <= 2
+        ? meta.height * (this.canvasHeight || 780)
+        : (meta.height || 520) * this.scale * 0.72;
+    const w = h * ratio;
+    const footY = this.groundY + this.root.oy;
+    const footX = this.basePosition.x + this.root.ox * 1.15;
+    return { img, w, h, x: footX - w / 2, y: footY - h, footX, footY, ratio };
+  }
+
+  _imageShapes() {
+    const rect = this.imageRect();
+    if (!rect) return null;
+    const { x, y, w, h } = rect;
+    const cx = x + w / 2;
+    const shapes = [];
+    const at = (part, fx, fy, fr) =>
+      shapes.push({ x: x + w * fx, y: y + h * fy, r: h * fr, part });
+    at("head", 0.5, 0.16, 0.15);
+    at("head", 0.5, 0.24, 0.1);
+    at("torso", 0.5, 0.44, 0.15);
+    at("torso", 0.5, 0.58, 0.14);
+    at("hips", 0.5, 0.68, 0.12);
+    at("armL", 0.16, 0.5, 0.09);
+    at("foreL", 0.09, 0.6, 0.08);
+    at("armR", 0.84, 0.5, 0.09);
+    at("foreR", 0.91, 0.6, 0.08);
+    at("legL", 0.38, 0.8, 0.09);
+    at("shinL", 0.37, 0.93, 0.08);
+    at("legR", 0.62, 0.8, 0.09);
+    at("shinR", 0.63, 0.93, 0.08);
+    void cx;
+    return shapes;
+  }
+
+  _drawImageDoll(ctx) {
+    const rect = this.imageRect();
+    if (!rect) {
       ctx.fillStyle = "rgba(255,255,255,0.2)";
-      ctx.fillRect(-height / 4, -height / 2, height / 2, height);
+      ctx.fillRect(-40, -200, 80, 200);
+      return;
+    }
+    const { img, w, h, x, y, footX, footY } = rect;
+    const meta = this.dollMeta || {};
+
+    const pivotY = footY - h * 0.14;
+    const angle = this.root.angle * (meta.tip ?? 0.9);
+    const breath = Math.sin(this.time * 2.1) * 0.008;
+    ctx.save();
+    // gentle breathing, anchored at the shoes, so a still photo feels alive
+    ctx.translate(footX, footY);
+    ctx.scale(1 + breath, 1 + breath * 1.7);
+    ctx.translate(-footX, -footY);
+    // tip over like a cardboard cut-out: pivot just above the shoes so both the
+    // head and the feet stay inside the frame when he goes down
+    ctx.translate(footX, pivotY);
+    ctx.rotate(angle);
+    ctx.translate(-footX, -pivotY);
+    ctx.translate(Math.sin(angle) * h * 0.05, 0);
+
+    if (meta.shadow !== false) {
+      ctx.save();
+      ctx.globalAlpha = 0.28;
+      ctx.fillStyle = "#000";
+      ctx.beginPath();
+      ctx.ellipse(footX, footY + 6, w * 0.34, h * 0.028, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    }
+
+    const flash = this.hitFlash;
+    if (flash > 0.02 && "filter" in ctx) {
+      ctx.filter = `brightness(${1 + flash * 0.55}) saturate(${1 + flash * 0.6})`;
+    }
+    ctx.drawImage(img, x, y, w, h);
+    if ("filter" in ctx) ctx.filter = "none";
+
+    // warm rim light so the plush sits in the classroom lighting
+    if (meta.rim !== false && !this.reduceGlow) {
+      ctx.save();
+      ctx.globalCompositeOperation = "lighter";
+      ctx.globalAlpha = 0.1;
+      ctx.drawImage(img, x, y, w, h);
+      ctx.restore();
     }
     ctx.restore();
   }

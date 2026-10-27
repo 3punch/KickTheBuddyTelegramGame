@@ -7,10 +7,10 @@ global leaderboard. And yes: **you can swap his face, the whole background and t
 voice** — from inside the game (Studio) or by dropping files into `web/assets/`.
 
 <p align="center">
-  <img src="docs/preview-idle.png" width="240" alt="Professor idle" />
+  <img src="docs/preview-idle.png" width="240" alt="The Professor plush, default character" />
   <img src="docs/preview-hurt.png" width="240" alt="Professor after a hit" />
   <img src="docs/preview-ko.png" width="240" alt="Professor knocked out" />
-  <img src="docs/preview-face.png" width="240" alt="Face swapped for a photo" />
+  <img src="docs/preview-face.png" width="240" alt="Bundled alternative face" />
 </p>
 
 <p align="center">
@@ -28,7 +28,7 @@ voice** — from inside the game (Studio) or by dropping files into `web/assets/
 | --- | --- |
 | **Gameplay** | Spring-driven ragdoll with per-limb physics, **18 hand-drawn weapons that visibly fly in, wind up and connect before the damage lands**, critical hits, combo multiplier, stun, rage mode, K.O. animations, screen shake, hit-stop |
 | **Progression** | Coins per damage + K.O. bonus, 4 permanent upgrade tracks (power, crit, coin bonus, toughness), weapon unlocks, persistent save (localStorage + Telegram CloudStorage) |
-| **Customisation** | Face swap (cartoon, drop-in photos or in-app upload), background swap (drawn classroom, drop-in images or upload), full-body doll replacement, voice selection (4 built-in cartoon voices, drop-in voice packs, or record your own per event) |
+| **Customisation** | Ships with the **Professor plush** as the default character (cut-out body, its own head avatar, tips over around its feet when K.O.'d); swap in any face, background, full-body doll or voice — bundled, dropped into `web/assets/` or uploaded in-game |
 | **Telegram** | Verified `initData`, Mini App button + menu button, webhook **and** long-polling modes, haptics, cloud save, native share, bot commands (`/play /top /me /help`) in EN/AR/DE/ES |
 | **Backend** | Zero-dependency Node HTTP server, SQLite leaderboard (global + weekly), anti-spam score endpoint, per-player rank, manifest auto-scan for assets, gzip + ETag static serving |
 | **Quality** | Fully responsive + RTL, reduced-motion option, no external game assets (all art & SFX generated in code), headless smoke test |

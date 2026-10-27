@@ -7,10 +7,22 @@ export function loadImage(url) {
   if (imageCache.has(url)) return imageCache.get(url);
   const promise = new Promise((resolve) => {
     const img = new Image();
+    let settled = false;
+    const done = (value) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      resolve(value);
+    };
+    // A corrupt asset (or a WebView that never decodes) must not block boot.
+    const timer = setTimeout(() => {
+      console.warn("[assets] image timed out:", url);
+      done(null);
+    }, 8000);
     img.crossOrigin = "anonymous";
     img.decoding = "async";
-    img.onload = () => resolve(img);
-    img.onerror = () => resolve(null);
+    img.onload = () => done(img);
+    img.onerror = () => done(null);
     img.src = url;
   });
   imageCache.set(url, promise);

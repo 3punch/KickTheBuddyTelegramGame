@@ -99,6 +99,8 @@ export function scanAssets() {
       url: publicUrl("dolls", entry.name),
       height: meta.height ?? 520,
       pivotY: meta.pivotY ?? 0.5,
+      avatar: meta.avatar || null,
+      tip: meta.tip ?? 0.9,
     });
   }
 

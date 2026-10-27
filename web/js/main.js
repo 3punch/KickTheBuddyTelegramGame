@@ -228,6 +228,21 @@ const displayLang = () =>
 
 /* ── cosmetics ──────────────────────────────────────────────────────────── */
 
+/** HUD bubble: custom upload → chosen face → the plush's own head crop. */
+function updateAvatar(faceId) {
+  if (!dom.avatar) return;
+  const custom = store.state.customAssets || {};
+  let src = null;
+  if (store.state.cosmetics.face === "custom" && custom.face) {
+    src = custom.face;
+  } else if (faceId && faceId !== "cartoon") {
+    src = findAsset(manifest, "face", faceId)?.url || null;
+  }
+  dom.avatar.innerHTML = "";
+  if (src) dom.avatar.append(el("img", { src, alt: "" }));
+  else dom.avatar.textContent = "👨‍🏫";
+}
+
 async function applyCosmetics() {
   const cosmetics = store.state.cosmetics || {};
   const custom = store.state.customAssets || {};
@@ -235,6 +250,12 @@ async function applyCosmetics() {
   // face
   let faceImage = null;
   let faceMeta = null;
+  let avatarFaceId = cosmetics.face;
+  if (cosmetics.doll && cosmetics.face === "cartoon") {
+    // a cut-out body ships its own head crop — use it for the HUD bubble
+    const dollAsset = findAsset(manifest, "doll", cosmetics.doll);
+    if (dollAsset?.avatar) avatarFaceId = dollAsset.avatar;
+  }
   if (cosmetics.face === "custom" && custom.face) {
     faceImage = await loadImage(custom.face);
     faceMeta = { scale: 1 };
@@ -246,15 +267,7 @@ async function applyCosmetics() {
     }
   }
   game.setFace(faceImage, faceMeta);
-  if (dom.avatar) {
-    dom.avatar.innerHTML = "";
-    if (faceImage) {
-      const img = el("img", { src: faceImage.src, alt: "" });
-      dom.avatar.append(img);
-    } else {
-      dom.avatar.textContent = "👨‍🏫";
-    }
-  }
+  updateAvatar(avatarFaceId);
 
   // body image
   let dollImage = null;

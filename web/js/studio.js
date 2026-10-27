@@ -61,7 +61,8 @@ export function buildStudio(ctx) {
   };
 
   const selectAndApply = async (slot, id, message) => {
-    store.setCosmetic(slot, id);
+    if (slot === "doll") store.chooseDoll(id === "custom" ? "custom" : id);
+    else store.setCosmetic(slot, id);
     await applyCosmetics();
     audio.sfx("click");
     haptic("select");
@@ -238,7 +239,7 @@ export function buildStudio(ctx) {
         price: !store.state.cosmetics.doll ? `✓ ${t("select")}` : t("select"),
         priceState: "owned",
         onClick: async () => {
-          store.setCosmetic("doll", null);
+          store.chooseDoll("");
           await applyCosmetics();
           rerender();
         },
