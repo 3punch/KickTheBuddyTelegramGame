@@ -15,7 +15,7 @@ const defaults = () => ({
   cosmetics: {
     background: "classroom",
     face: "cartoon",
-    doll: null,
+    doll: "professor-plush",
     voice: "builtin:professor",
     voicePitch: 1,
   },
@@ -36,6 +36,7 @@ const defaults = () => ({
     rounds: 0,
   },
   seen: { intro: false, shop: false },
+  flags: { dollPicked: false },
 });
 
 function deepMerge(base, patch) {
@@ -66,7 +67,20 @@ export class Store {
       /* corrupted save -> defaults */
       this.isFresh = true;
     }
+    // Older saves have no doll set. Show the plush character unless the player
+    // has deliberately picked a body in the Studio.
+    const hasDoll = Boolean(this.state.cosmetics?.doll);
+    if (!hasDoll && !this.state.flags?.dollPicked) {
+      this.state.cosmetics.doll = "professor-plush";
+    }
     return this.state;
+  }
+
+  /** Remember that the player chose a body, so defaults never override it. */
+  chooseDoll(id) {
+    this.state.cosmetics.doll = id || "";
+    this.state.flags.dollPicked = true;
+    this.commit();
   }
 
   async loadCloud() {

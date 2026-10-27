@@ -73,19 +73,29 @@ A bundled example lives at `web/assets/faces/dean.svg`.
 | | |
 | --- | --- |
 | Location | `web/assets/dolls/` |
-| Formats | `.png` with transparency |
-| Suggested size | 600 × 1100 (roughly 1:1.8) |
-| Metadata | optional `<id>.json` |
+| Formats | `.png` with transparency (the flat-background keyer handles JPEGs) |
+| Suggested size | anything portrait; 645 × 900 is what the bundled plush uses |
+| Metadata | `<id>.json` (recommended) |
 
 ```json
-// web/assets/dolls/buddy.json
-{ "name": "Buddy", "height": 520, "pivotY": 0.5 }
+// web/assets/dolls/professor-plush.json
+{
+  "name": "Professor Plush",
+  "height": 0.6,          // fraction of the screen height (<= 2), or legacy px units
+  "tip": 0.92,            // how much the body rotates when hit / knocked out
+  "avatar": "professor-head"   // face id used for the HUD avatar bubble
+}
 ```
 
-`height` is expressed in the doll's internal units (the drawn professor is ~520),
-`pivotY` is where the image pivots (0.5 = centre). When a doll image is set the
-articulated body is hidden but the physics still applies — knockback, squash,
-K.O. tumble and shadows all keep working.
+The **default character is `professor-plush`** — a cut-out body that stands
+feet-on-floor, tips over like a cardboard cut-out on a K.O. and keeps the
+hit-shapes aligned with the artwork (head, torso, arms, legs are all hittable).
+Set `"doll": ""` in a save/Studio to fall back to the drawn professor.
+
+`height ≤ 2` is read as a fraction of the canvas height; larger numbers are the
+legacy design units (the drawn professor is ~520). When a doll image is active,
+the articulated body is hidden but the physics still applies — knockback, squash,
+screen shake, tumble and shadows all keep working.
 
 ---
 

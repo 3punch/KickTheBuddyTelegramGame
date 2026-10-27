@@ -55,6 +55,19 @@ test("client boots, renders frames and opens every sheet", async () => {
   });
   const { window } = dom;
 
+  // jsdom does not decode images; a stub keeps asset loading synchronous-ish
+  window.Image = class FakeImage {
+    constructor() {
+      this.naturalWidth = 645;
+      this.naturalHeight = 900;
+      this.width = 645;
+      this.height = 900;
+      this.complete = true;
+      this.src = "";
+      setTimeout(() => this.onload && this.onload(), 0);
+    }
+  };
+
   // canvas stub
   window.HTMLCanvasElement.prototype.getContext = () => fakeContext();
   window.HTMLCanvasElement.prototype.toDataURL = () => "data:image/png;base64,AAA";
@@ -128,8 +141,21 @@ test("client boots, renders frames and opens every sheet", async () => {
     startCoins: 250,
     assets: {
       backgrounds: [{ id: "auditorium", name: "Auditorium", url: "/assets/backgrounds/auditorium.png" }],
-      faces: [{ id: "dean", name: "Dean", url: "/assets/faces/dean.png", scale: 1 }],
-      dolls: [],
+      faces: [
+        { id: "dean", name: "Dean", url: "/assets/faces/dean.png", scale: 1 },
+        { id: "professor-head", name: "Professor (plush)", url: "/assets/faces/professor-head.png" },
+      ],
+      dolls: [
+        {
+          id: "professor-plush",
+          name: "Professor Plush",
+          url: "/assets/dolls/professor-plush.png",
+          height: 0.6,
+          pivotY: 0.5,
+          avatar: "professor-head",
+          tip: 0.92,
+        },
+      ],
       voicePacks: [
         { id: "prof", name: "Prof Pack", language: "en", clips: { hit: ["/assets/voice/prof/hit-1.mp3"] } },
       ],
@@ -189,6 +215,17 @@ test("client boots, renders frames and opens every sheet", async () => {
     assert.ok(app.game, "game instance exists");
     assert.equal(app.store.state.coins, 250);
 
+    // the plush character is the default body
+    assert.equal(app.store.state.cosmetics.doll, "professor-plush", "plush doll is default");
+    assert.equal(app.game.weaponId, app.store.state.equipped);
+    const hud = window.document.getElementById("hudAvatar");
+    await new Promise((resolve) => setTimeout(resolve, 250));
+    assert.equal(app.store.state.cosmetics.doll, "professor-plush");
+    assert.ok(
+      hud.querySelector("img"),
+      `HUD avatar uses the plush head crop (html: ${hud.innerHTML.slice(0, 80)})`
+    );
+
     const game = app.game;
     const { x, y } = game.doll.basePosition;
 
@@ -227,8 +264,25 @@ test("client boots, renders frames and opens every sheet", async () => {
       assert.ok(button, `${id} exists`);
       button.dispatchEvent(new window.MouseEvent("click", { bubbles: true }));
       await new Promise((resolve) => setTimeout(resolve, 120));
-      assert.equal(window.document.getElementById("modalRoot").hidden, false, `${id} opens the sheet`);
-      assert.ok(window.document.getElementById("modalBody").children.length > 0, `${id} renders content`);
+      const root = window.document.getElementById("modalRoot");
+      const body = window.document.getElementById("modalBody");
+      assert.equal(root.hidden, false, `${id} opens the sheet`);
+      assert.ok(body.children.length > 0, `${id} renders content`);
+
+      if (id === "btnShop") {
+        // the long list that used to be un-scrollable
+        const cards = body.querySelectorAll(".card");
+        const { WEAPONS } = await import("../web/js/content.js");
+        assert.equal(cards.length, WEAPONS.length, "every weapon is listed in the shop");
+        const upgradesTab = [...body.querySelectorAll(".tab")].find(
+          (tab) => tab.textContent === "Upgrades"
+        );
+        assert.ok(upgradesTab, "upgrades tab exists");
+        upgradesTab.dispatchEvent(new window.MouseEvent("click", { bubbles: true }));
+        await new Promise((resolve) => setTimeout(resolve, 80));
+        assert.equal(body.querySelectorAll(".field").length, 4, "four upgrade tracks render");
+      }
+
       app.closeModal();
       await new Promise((resolve) => setTimeout(resolve, 60));
     }

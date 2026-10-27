@@ -27,6 +27,26 @@ const bodyEl = () => document.getElementById("modalBody");
 
 let isOpen = false;
 let onCloseCallback = null;
+let scrollBound = false;
+
+/** Show a fade at the bottom of the sheet while there is more content below. */
+export function syncScrollHint() {
+  const body = bodyEl();
+  const modal = modalEl();
+  if (!body || !modal) return;
+  const atBottom = body.scrollTop + body.clientHeight >= body.scrollHeight - 6;
+  const canScroll = body.scrollHeight - body.clientHeight > 12;
+  modal.classList.toggle("has-scroll", canScroll && !atBottom);
+}
+
+function bindScrollHint() {
+  if (scrollBound) return;
+  const body = bodyEl();
+  if (!body) return;
+  body.addEventListener("scroll", syncScrollHint, { passive: true });
+  window.addEventListener("resize", syncScrollHint);
+  scrollBound = true;
+}
 
 export function openModal({ title, body, onClose, wide = false }) {
   const root = modalRoot();
@@ -42,6 +62,8 @@ export function openModal({ title, body, onClose, wide = false }) {
   });
   isOpen = true;
   onCloseCallback = onClose || null;
+  bindScrollHint();
+  requestAnimationFrame(syncScrollHint);
 }
 
 export function setModalBody(node) {
@@ -49,6 +71,7 @@ export function setModalBody(node) {
   body.innerHTML = "";
   if (node) body.append(node);
   body.scrollTop = 0;
+  requestAnimationFrame(syncScrollHint);
 }
 
 export function closeModal() {
@@ -58,6 +81,7 @@ export function closeModal() {
   root.classList.remove("open");
   const callback = onCloseCallback;
   onCloseCallback = null;
+  modalEl()?.classList.remove("has-scroll");
   setTimeout(() => {
     if (!root.classList.contains("open")) root.hidden = true;
   }, 280);
