@@ -20,6 +20,21 @@ After adding/removing files run `npm run assets` (or restart the server) to
 rebuild `web/assets/manifest.json`. The manifest is fetched by the client at
 `/api/config`.
 
+### Use the importer instead of copying files by hand
+
+```bash
+npm run assets:add -- face ~/Desktop/prof.jpg --id prof --remove-bg --tight
+npm run assets:add -- background ~/Desktop/class.jpg --id lab --dim 0.08
+npm run assets:add -- doll ~/Desktop/buddy.png --id buddy --height 520
+npm run assets:add -- voice prof hit ~/voice/hit-1.mp3 --name "Prof Pack"
+npm run assets:list
+```
+
+It resizes/converts, optionally keys out a flat background (`--remove-bg`,
+`--tolerance`), crops to the head (`--tight`), writes the metadata JSON, prints a
+PNG preview in `tmp/import-*.png`, and rebuilds the manifest. Re-run with
+`--scale/--offset-y/--rotate` to nudge a face that sits off-centre.
+
 ---
 
 ## Backgrounds
