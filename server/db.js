@@ -1,5 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
+import crypto from "node:crypto";
 import { DatabaseSync } from "node:sqlite";
 import { config } from "./config.js";
 
@@ -61,6 +62,23 @@ export function upsertPlayer(user, lang = "en") {
     ).run(user.username || existing.username, firstName, lang, now(), user.id);
   }
   return getPlayer(user.id);
+}
+
+/** Stable pseudo-id for a browser guest in preview mode (negative IDs avoid Telegram IDs). */
+export function guestProfile(guestKey) {
+  if (typeof guestKey !== "string" || !/^[a-z0-9-]{16,80}$/i.test(guestKey)) return null;
+  const digest = crypto
+    .createHmac("sha256", config.webhookSecret || "ktp-preview")
+    .update(`preview:${guestKey.toLowerCase()}`)
+    .digest("hex");
+  const id = -Math.max(1, Number.parseInt(digest.slice(0, 13), 16));
+  return { id, first_name: `Guest ${digest.slice(0, 4).toUpperCase()}`, username: null };
+}
+
+/** Persist a browser guest only when they enter preview mode / submit a score. */
+export function upsertGuestPlayer(guestKey, lang = "en") {
+  const profile = guestProfile(guestKey);
+  return profile ? upsertPlayer(profile, lang) : null;
 }
 
 export function getPlayer(id) {

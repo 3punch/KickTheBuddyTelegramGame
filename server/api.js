@@ -3,6 +3,7 @@ import { verifyInitData } from "./validation.js";
 import { getManifest } from "./assets.js";
 import {
   upsertPlayer,
+  upsertGuestPlayer,
   getPlayer,
   recordRound,
   leaderboard,
@@ -99,20 +100,19 @@ export async function handleApi(req, res, url) {
       return true;
     }
     if (!auth.user) {
-      // Preview / local development: an ephemeral demo identity.
+      // Preview mode keeps a stable, anonymous browser profile so scores can
+      // participate in the local/global preview leaderboard without Telegram.
+      const lang = String(body.lang || "en").slice(0, 2);
+      const player = upsertGuestPlayer(body.guestId, lang);
+      if (!player) {
+        sendJson(res, 400, { ok: false, error: "bad_guest_id" });
+        return true;
+      }
       sendJson(res, 200, {
         ok: true,
         demo: true,
-        player: {
-          id: 0,
-          name: "Guest",
-          totalDamage: 0,
-          bestRound: 0,
-          bestCombo: 0,
-          kos: 0,
-          rounds: 0,
-        },
-        rank: null,
+        player: publicPlayer(player),
+        rank: rankOf(player.id, "all"),
       });
       return true;
     }
@@ -134,12 +134,15 @@ export async function handleApi(req, res, url) {
       sendJson(res, 401, { ok: false, error: auth.reason });
       return true;
     }
-    if (!auth.user) {
-      // Don't persist demo scores, but answer success so the client UX is identical.
-      sendJson(res, 200, { ok: true, demo: true, accepted: false });
+    const demo = !auth.user;
+    const player = demo
+      ? upsertGuestPlayer(body.guestId, String(body.lang || "en").slice(0, 2))
+      : upsertPlayer(auth.user, String(body.lang || auth.user.language_code || "en").slice(0, 2));
+    if (!player) {
+      sendJson(res, 400, { ok: false, error: "bad_guest_id" });
       return true;
     }
-    const playerId = auth.user.id;
+    const playerId = player.id;
     const now = Date.now();
     if (now - (lastSubmit.get(playerId) || 0) < SCORE_COOLDOWN_MS) {
       sendJson(res, 429, { ok: false, error: "too_fast" });
@@ -154,15 +157,16 @@ export async function handleApi(req, res, url) {
     const damage = Math.min(MAX_ROUND_DAMAGE, Math.round(damageRaw));
     lastSubmit.set(playerId, now);
 
-    const player = recordRound(playerId, {
+    const updatedPlayer = recordRound(playerId, {
       damage,
       combo: Number(body.combo) || 0,
       kos: Number(body.kos) || 0,
     });
     sendJson(res, 200, {
       ok: true,
-      accepted: true,
-      player: publicPlayer(player),
+      demo,
+      accepted: Boolean(updatedPlayer),
+      player: publicPlayer(updatedPlayer),
       rank: rankOf(playerId, "all"),
     });
     return true;

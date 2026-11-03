@@ -8,6 +8,7 @@ import crypto from "node:crypto";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { Readable } from "node:stream";
 
 const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "ktp-test-"));
 process.env.BOT_TOKEN = "123456:TEST-TOKEN";
@@ -16,6 +17,8 @@ process.env.DB_PATH = path.join(tmpDir, "test.db");
 process.env.START_COINS = "300";
 
 const { verifyInitData, sessionKeyFor } = await import("../server/validation.js");
+const { config } = await import("../server/config.js");
+const { handleApi } = await import("../server/api.js");
 const { getManifest } = await import("../server/assets.js");
 const { upsertPlayer, recordRound, leaderboard, rankOf, globalStats } = await import("../server/db.js");
 
@@ -119,4 +122,52 @@ test("score values are clamped to sane ranges", () => {
 
 test("unknown players do not create rows", () => {
   assert.equal(recordRound(999, { damage: 10 }), null);
+});
+
+test("preview guests can submit scores that appear on the leaderboard", async () => {
+  const previousToken = config.botToken;
+  config.botToken = "";
+  const request = async (method, route, body) => {
+    const req = Readable.from(body ? [Buffer.from(JSON.stringify(body))] : []);
+    req.method = method;
+    req.headers = {};
+    let status = 0;
+    let responseBody = "";
+    const res = {
+      writeHead(code) {
+        status = code;
+      },
+      end(text = "") {
+        responseBody = String(text);
+      },
+    };
+    await handleApi(req, res, new URL(route, "http://localhost"));
+    return { status, body: JSON.parse(responseBody || "{}") };
+  };
+  const guestId = "preview-browser-guest-000001";
+  try {
+    const session = await request("POST", "/api/session", { guestId, lang: "en" });
+    assert.equal(session.status, 200);
+    assert.equal(session.body.demo, true);
+    assert.match(session.body.player.name, /^Guest /);
+    assert.ok(session.body.player.id < 0, "preview identities use a separate negative-id range");
+
+    const score = await request("POST", "/api/score", {
+      guestId,
+      lang: "en",
+      damage: 432,
+      combo: 7,
+      kos: 1,
+    });
+    assert.equal(score.status, 200);
+    assert.equal(score.body.accepted, true);
+    assert.equal(score.body.player.totalDamage, 432);
+
+    const board = await request("GET", "/api/leaderboard?period=all&limit=20");
+    const row = board.body.rows.find((item) => item.id === session.body.player.id);
+    assert.ok(row, "guest score is visible on the leaderboard");
+    assert.equal(row.totalDamage, 432);
+  } finally {
+    config.botToken = previousToken;
+  }
 });

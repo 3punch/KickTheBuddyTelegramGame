@@ -57,10 +57,17 @@ export class Doll {
     this.expressionTimer = 0;
     this.stun = 0;
     this.ragdoll = false;
+    this.knockedOut = false;
     this.reviveTimer = 0;
     this.koTimer = 0;
     this.squash = { x: 1, y: 1, vx: 0, vy: 0 };
     this.bandaids = [];
+    this.injuries = [];
+    this.dragging = false;
+    this.dragLimp = false;
+    this.dragTarget = null;
+    this.dragAnchor = null;
+    this.dragState = null;
     this.faceImage = null;
     this.faceMeta = null;
     this.dollImage = null;
@@ -181,6 +188,7 @@ export class Doll {
   /* ── layout ──────────────────────────────────────────────────────────── */
 
   resize(width, height) {
+    this.canvasWidth = width;
     this.canvasHeight = height;
     const targetHeight = clamp(height * 0.55, 250, 600);
     const natural = this.B.headR * 2 + this.B.torso + this.B.thigh + this.B.shin;
@@ -191,6 +199,7 @@ export class Doll {
     // body and a cut-out photo stand on the classroom floor line.
     this.groundY =
       this.basePosition.y + (this.B.thigh + this.B.shin + this.B.foot * 0.35) * this.scale;
+    this._updateWorld();
   }
 
   reset() {
@@ -202,12 +211,19 @@ export class Doll {
     r.angle = 0;
     r.vAngle = 0;
     this.ragdoll = false;
+    this.knockedOut = false;
     this.reviveTimer = 0;
     this.koTimer = 0;
+    this.dragging = false;
+    this.dragLimp = false;
+    this.dragTarget = null;
+    this.dragAnchor = null;
+    this.dragState = null;
     this.expression = "idle";
     this.expressionTimer = 0;
     this.stun = 0;
     this.bandaids = [];
+    this.injuries = [];
     this.squash = { x: 1, y: 1, vx: 0, vy: 0 };
     for (const key of this.order) {
       const n = this.nodes[key];
@@ -224,6 +240,7 @@ export class Doll {
   setDollImage(image, meta) {
     this.dollImage = image || null;
     this.dollMeta = meta || null;
+    this._updateWorld();
   }
 
   setPointer(x, y) {
@@ -237,6 +254,113 @@ export class Doll {
       this.lookAt.x = clamp(dx / len, -1, 1);
       this.lookAt.y = clamp(dy / len, -1, 1);
     }
+  }
+
+  /** Grab the body at its current angle. The hit point stays under the finger. */
+  beginDrag(x, y) {
+    this._updateWorld();
+    const transform = this.dollImage ? this._imageTransform() : null;
+    const pivot = transform
+      ? { x: transform.pivotX, y: transform.pivotY }
+      : { x: this.basePosition.x + this.root.ox, y: this.basePosition.y + this.root.oy };
+    const angle = transform ? transform.angle : this.root.angle;
+    const dx = x - pivot.x;
+    const dy = y - pivot.y;
+    const cos = Math.cos(angle);
+    const sin = Math.sin(angle);
+    this.dragAnchor = { x: dx * cos + dy * sin, y: -dx * sin + dy * cos };
+    this.dragTarget = { x, y };
+    this.dragState = {
+      root: { ...this.root },
+      ragdoll: this.ragdoll,
+      knockedOut: this.knockedOut,
+      reviveTimer: this.reviveTimer,
+      expression: this.expression,
+      expressionTimer: this.expressionTimer,
+    };
+    this.dragging = true;
+    this.dragLimp = false;
+    return true;
+  }
+
+  /** Move a grabbed doll without losing the point held by the player. */
+  dragTo(x, y) {
+    if (!this.dragging || !this.dragAnchor) return false;
+    this.dragTarget = { x, y };
+    this.dragLimp = true;
+    this.ragdoll = true;
+    if (!this.knockedOut) {
+      this.reviveTimer = Math.max(this.reviveTimer, 1.4);
+      this.expression = "dizzy";
+      this.expressionTimer = Math.max(this.expressionTimer, 0.6);
+    }
+
+    const transform = this.dollImage ? this._imageTransform() : null;
+    const angle = transform ? transform.angle : this.root.angle;
+    const cos = Math.cos(angle);
+    const sin = Math.sin(angle);
+    const anchorX = this.dragAnchor.x * cos - this.dragAnchor.y * sin;
+    const anchorY = this.dragAnchor.x * sin + this.dragAnchor.y * cos;
+    let pivotX = x - anchorX;
+    let pivotY = y - anchorY;
+    const margin = 18;
+    pivotX = clamp(pivotX, margin, (this.canvasWidth || 430) - margin);
+    pivotY = clamp(pivotY, margin, (this.canvasHeight || 780) - margin);
+
+    if (transform) {
+      this.root.ox = (pivotX - this.basePosition.x) / 1.15;
+      this.root.oy = pivotY - this.groundY + transform.rect.h * 0.14;
+    } else {
+      this.root.ox = pivotX - this.basePosition.x;
+      this.root.oy = pivotY - this.basePosition.y;
+    }
+    this.root.vx = 0;
+    this.root.vy = 0;
+    this.root.vAngle = 0;
+    this._updateWorld();
+    return true;
+  }
+
+  /** Undo a press that turned out to be a tap rather than a drag. */
+  cancelDrag() {
+    if (!this.dragging) return false;
+    const state = this.dragState;
+    if (state) {
+      Object.assign(this.root, state.root);
+      this.ragdoll = state.ragdoll;
+      this.knockedOut = state.knockedOut;
+      this.reviveTimer = state.reviveTimer;
+      this.expression = state.expression;
+      this.expressionTimer = state.expressionTimer;
+    }
+    this.dragging = false;
+    this.dragLimp = false;
+    this.dragTarget = null;
+    this.dragAnchor = null;
+    this.dragState = null;
+    this._updateWorld();
+    return true;
+  }
+
+  /** Release a drag with the pointer's measured velocity. */
+  fling(vx = 0, vy = 0) {
+    if (!this.dragging) return false;
+    const state = this.dragState;
+    this.dragging = false;
+    this.dragLimp = false;
+    this.dragTarget = null;
+    this.dragAnchor = null;
+    this.dragState = null;
+    this.ragdoll = true;
+    this.knockedOut = Boolean(state?.knockedOut || this.knockedOut);
+    this.expression = this.knockedOut ? "ko" : "dizzy";
+    this.expressionTimer = this.knockedOut ? 999 : 1.2;
+    this.root.vx = clamp(vx, -1800, 1800);
+    this.root.vy = clamp(vy, -1800, 1800);
+    this.root.vAngle = clamp(this.root.vx * 0.0026 + (Math.random() - 0.5) * 1.2, -7, 7);
+    if (!this.knockedOut) this.reviveTimer = Math.max(1.3, Math.min(2.3, 1.25 + Math.hypot(vx, vy) / 1400));
+    this._updateWorld();
+    return true;
   }
 
   /* ── simulation ──────────────────────────────────────────────────────── */
@@ -258,6 +382,7 @@ export class Doll {
     }
     this.stun = Math.max(0, this.stun - step);
     this.hitFlash = Math.max(0, this.hitFlash - step * 3.4);
+    for (const injury of this.injuries) injury.age += step;
 
     // squash & stretch spring
     const sq = this.squash;
@@ -269,7 +394,12 @@ export class Doll {
     sq.y = clamp(sq.y + sq.vy * step, 0.72, 1.34);
 
     const r = this.root;
-    if (this.ragdoll) {
+    if (this.dragging) {
+      // Pointer events place the pivot directly; stop springs while held.
+      r.vx = 0;
+      r.vy = 0;
+      r.vAngle = 0;
+    } else if (this.ragdoll) {
       r.vy += 2600 * step;
       r.oy += r.vy * step;
       r.ox += r.vx * step;
@@ -284,32 +414,52 @@ export class Doll {
         r.oy = groundLimit;
         if (Math.abs(r.vy) > 130) {
           r.vy *= -0.32;
-          this.onImpact("ground", r.x + r.ox, this.groundY, Math.abs(r.vy));
+          this.onImpact("ground", this.basePosition.x + r.ox, this.groundY, Math.abs(r.vy));
         } else {
           r.vy = 0;
         }
         r.vx *= 0.86;
         r.vAngle *= 0.84;
-        // lie flat
         const target = r.angle > 0 ? (cutout ? 1.2 : 1.48) : cutout ? -1.2 : -1.48;
         r.angle = lerp(r.angle, target, Math.min(1, 6 * step));
       }
-      const travel = this.dollImage ? 60 * this.scale : 110 * this.scale;
-      r.ox = clamp(r.ox, -travel, travel);
-      if (this.dollImage) {
-        // a photo body pivots on its feet: keep the tumble readable on screen
-        const limit = 1.02;
+
+      // Bounce off the stage edges rather than clamping the doll near center.
+      const width = this.canvasWidth || 430;
+      const xFactor = cutout ? 1.15 : 1;
+      const imageWidth = cutout ? this.imageRect()?.w || 180 : 110 * this.scale;
+      const margin = Math.min(width * 0.38, Math.max(28, imageWidth * 0.4));
+      const worldX = this.basePosition.x + r.ox * xFactor;
+      if (worldX < margin) {
+        r.ox = (margin - this.basePosition.x) / xFactor;
+        if (r.vx < 0) r.vx = -r.vx * 0.48;
+        r.vAngle *= -0.72;
+      } else if (worldX > width - margin) {
+        r.ox = (width - margin - this.basePosition.x) / xFactor;
+        if (r.vx > 0) r.vx = -r.vx * 0.48;
+        r.vAngle *= -0.72;
+      }
+
+      const bodyHeight = cutout ? this.imageRect()?.h || 300 : this.B.headR * 3 * this.scale;
+      const topLimit = cutout ? bodyHeight * 0.68 : this.B.headR * 2.8 * this.scale;
+      const worldY = cutout ? this.groundY + r.oy : this.basePosition.y + r.oy;
+      if (worldY < topLimit) {
+        r.oy = topLimit - (cutout ? this.groundY : this.basePosition.y);
+        if (r.vy < 0) r.vy = -r.vy * 0.42;
+      }
+      if (cutout) {
+        // Allow real flips in the air; pivoting remains feet-anchored.
+        const limit = 2.35;
         if (r.angle > limit) {
           r.angle = limit;
-          r.vAngle *= -0.2;
+          r.vAngle *= -0.25;
         } else if (r.angle < -limit) {
           r.angle = -limit;
-          r.vAngle *= -0.2;
+          r.vAngle *= -0.25;
         }
-        r.oy = clamp(r.oy, -40 * this.scale, groundLimitForImage(this));
       }
     } else {
-      // knockback spring back to the standing spot
+      // Light hits settle back to the standing spot; thrown dolls use ragdoll gravity.
       r.vx += (-r.ox * 190 - r.vx * 20) * step;
       r.vy += (-r.oy * 190 - r.vy * 20) * step;
       r.ox += r.vx * step;
@@ -343,10 +493,15 @@ export class Doll {
       }
     }
 
-    // recovery from KO
-    if (this.ragdoll && this.reviveTimer > 0) {
+    // Recovery waits for the body to land; long throws never stand up mid-air.
+    if (this.ragdoll && this.reviveTimer > 0 && !this.dragging) {
       this.reviveTimer -= step;
-      if (this.reviveTimer <= 0) this._standUp();
+      const groundLimit = this.dollImage
+        ? 14 * this.scale
+        : this.groundY - this.basePosition.y - this.B.torso * this.scale * 0.1;
+      const landed = this.root.oy >= groundLimit - 10 && Math.abs(this.root.vy) < 230;
+      if (this.reviveTimer <= 0 && landed) this._standUp();
+      else if (this.reviveTimer <= 0) this.reviveTimer = 0.12;
     }
     this.koTimer = Math.max(0, this.koTimer - step);
 
@@ -434,40 +589,27 @@ export class Doll {
   /* ── reactions ───────────────────────────────────────────────────────── */
 
   hurt(amount, point, impulse = 1, { heavy = false } = {}) {
-    if (this.ragdoll) return;
+    if (this.knockedOut) return null;
     const shape = point?.part ? point : this.hitTest(point?.x ?? 0, point?.y ?? 0, 40);
     const part = shape?.part || "torso";
     const node = this.nodes[part] || this.nodes.torso;
-    const dir = (point?.x ?? this.basePosition.x) < this.basePosition.x + this.root.ox ? 1 : -1;
+    const bodyX = this.dollImage ? this.basePosition.x + this.root.ox * 1.15 : this.basePosition.x + this.root.ox;
+    const dir = (point?.x ?? this.basePosition.x) < bodyX ? 1 : -1;
 
     node.vel += dir * impulse * 6 + (Math.random() - 0.5) * 2;
-    if (part === "head") {
-      this.nodes.torso.vel += dir * impulse * 2.4;
-      this.expression = "hurt";
-      this.expressionTimer = 0.55;
-      this.hitFlash = 1;
-    } else {
-      this.expression = Math.random() < 0.4 ? "hurt" : "annoyed";
-      this.expressionTimer = 0.4;
-    }
+    if (part === "head") this.nodes.torso.vel += dir * impulse * 2.4;
+    this.expression = heavy ? "dizzy" : Math.random() < 0.4 ? "hurt" : "annoyed";
+    this.expressionTimer = heavy ? 1.1 : part === "head" ? 0.55 : 0.4;
+    this.hitFlash = 1;
 
     const r = this.root;
-    r.vx += dir * impulse * 56;
-    r.vy -= impulse * 16;
+    r.vx += dir * impulse * (this.ragdoll ? 30 : 56);
+    r.vy -= impulse * (this.ragdoll ? 10 : 16);
     r.vAngle += dir * impulse * 0.75;
 
     this.squash.vx += (Math.random() < 0.5 ? -1 : 1) * 3 * Math.min(1.6, impulse);
     this.squash.vy -= 2.2 * Math.min(1.6, impulse);
-
-    if (Math.random() < 0.55 && this.bandaids.length < 6) {
-      this.bandaids.push({
-        u: (Math.random() - 0.5) * 1.4,
-        v: 0.2 + Math.random() * 0.7,
-        rot: (Math.random() - 0.5) * 1.2,
-        age: 0,
-        where: Math.random() < 0.4 ? "head" : "chest",
-      });
-    }
+    const injury = this._addInjury(amount, point || {}, part, { heavy });
 
     if (this.dollImage) {
       // a photo body has no physics limbs, so exaggerate the whole-body recoil
@@ -477,15 +619,86 @@ export class Doll {
       this.squash.vy -= 1.6;
     }
 
-    if (heavy) {
-      this.stun = Math.max(this.stun, 0.5);
-      this.expression = "dizzy";
-      this.expressionTimer = 1.1;
+    if (heavy) this.stun = Math.max(this.stun, 0.5);
+    return injury;
+  }
+
+  _addInjury(amount, point, part, { heavy = false } = {}) {
+    const strength = clamp(Number(amount) / 520, 0.25, 1);
+    let injury;
+    if (this.dollImage) {
+      const rect = this.imageRect();
+      const local = this._imageLocalPoint(point.x ?? rect.footX, point.y ?? rect.footY, rect);
+      let u = (local.x - rect.x) / rect.w;
+      let v = (local.y - rect.y) / rect.h;
+      if (!Number.isFinite(u) || !Number.isFinite(v) || u < 0.02 || u > 0.98 || v < 0.02 || v > 0.98) {
+        const fallback = {
+          head: [0.5, 0.2], torso: [0.5, 0.5], hips: [0.5, 0.68],
+          armL: [0.16, 0.5], foreL: [0.1, 0.6], armR: [0.84, 0.5], foreR: [0.9, 0.6],
+          legL: [0.38, 0.8], shinL: [0.37, 0.93], legR: [0.62, 0.8], shinR: [0.63, 0.93],
+        }[part] || [0.5, 0.5];
+        [u, v] = fallback;
+      }
+      u = clamp(u, 0.04, 0.96);
+      v = clamp(v, 0.04, 0.96);
+      injury = this.injuries.find((item) => item.space === "image" && item.part === part &&
+        Math.hypot(item.u - u, item.v - v) < 0.085);
+      if (!injury) {
+        injury = { space: "image", part, u, v, rot: (Math.random() - 0.5) * 1.1, hits: 0, age: 0 };
+        this.injuries.push(injury);
+      }
+    } else {
+      const map = {
+        head: { nodeKey: "head", face: true }, torso: { nodeKey: "torso" }, hips: { nodeKey: "torso" },
+        armL: { nodeKey: "armL" }, foreL: { nodeKey: "foreL" },
+        armR: { nodeKey: "armR" }, foreR: { nodeKey: "foreR" },
+        legL: { nodeKey: "legL" }, shinL: { nodeKey: "shinL" },
+        legR: { nodeKey: "legR" }, shinR: { nodeKey: "shinR" },
+      };
+      const mapping = map[part] || map.torso;
+      const node = this.world?.[mapping.nodeKey] || this.nodes.torso;
+      const dx = (point.x ?? node.wx) - node.wx;
+      const dy = (point.y ?? node.wy) - node.wy;
+      const cos = Math.cos(node.wa);
+      const sin = Math.sin(node.wa);
+      let localX = (dx * cos + dy * sin) / this.scale;
+      let localY = (-dx * sin + dy * cos) / this.scale;
+      if (mapping.face) localY += this.B.headR * 0.95;
+      const bounds = mapping.face
+        ? { x: this.B.headR * 0.68, minY: -this.B.headR * 0.48, maxY: this.B.headR * 0.5 }
+        : mapping.nodeKey === "torso"
+          ? { x: 27, minY: -this.B.torso * 0.94, maxY: -2 }
+          : { x: 17, minY: 0, maxY: Math.max(12, node.len || 40) };
+      localX = clamp(localX, -bounds.x, bounds.x);
+      localY = clamp(localY, bounds.minY, bounds.maxY);
+      injury = this.injuries.find((item) => item.space === "rig" && item.nodeKey === mapping.nodeKey &&
+        Math.hypot(item.localX - localX, item.localY - localY) < 13);
+      if (!injury) {
+        injury = {
+          space: "rig", part, nodeKey: mapping.nodeKey, face: Boolean(mapping.face),
+          localX, localY, rot: (Math.random() - 0.5) * 1.1, hits: 0, age: 0,
+        };
+        this.injuries.push(injury);
+      }
     }
+
+    const hadBlood = Boolean(injury.blood);
+    injury.hits += 1;
+    injury.age = 0;
+    injury.intensity = Math.max(injury.intensity || 0, strength);
+    injury.redness = Math.min(1, (injury.redness || 0) + 0.38 + strength * 0.25);
+    injury.bruise = Boolean(injury.bruise || injury.hits >= 2 || amount >= 180 || heavy);
+    injury.blood = Boolean(injury.blood || injury.hits >= 3 || amount >= 520 || heavy);
+    injury.bloodBurst = injury.blood && (!hadBlood || injury.hits % 3 === 0);
+    while (this.injuries.length > 24) this.injuries.shift();
+    return injury;
   }
 
   ko(duration = 2.4) {
     this.ragdoll = true;
+    this.knockedOut = true;
+    this.dragging = false;
+    this.dragState = null;
     this.expression = "ko";
     this.expressionTimer = 999;
     this.reviveTimer = duration;
@@ -501,8 +714,18 @@ export class Doll {
     }
   }
 
+  finishKnockout() {
+    this.knockedOut = false;
+    if (this.dragState) this.dragState.knockedOut = false;
+    if (this.ragdoll) this.reviveTimer = Math.max(this.reviveTimer, 0.7);
+  }
+
   _standUp() {
     this.ragdoll = false;
+    this.knockedOut = false;
+    this.dragging = false;
+    this.dragLimp = false;
+    this.dragState = null;
     this.expression = "dizzy";
     this.expressionTimer = 0.9;
     const r = this.root;
@@ -569,6 +792,7 @@ export class Doll {
 
     this._drawTorso(ctx, outline);
     this._drawHead(ctx, outline);
+    this._drawRigInjuries(ctx);
 
     if (this.hitFlash > 0.02) {
       ctx.save();
@@ -1151,14 +1375,60 @@ export class Doll {
     return { img, w, h, x: footX - w / 2, y: footY - h, footX, footY, ratio };
   }
 
+  _imageTransform(rect = this.imageRect()) {
+    if (!rect) return null;
+    const angle = this.root.angle * ((this.dollMeta || {}).tip ?? 0.9);
+    const breath = Math.sin(this.time * 2.1) * 0.008;
+    return {
+      rect,
+      pivotX: rect.footX,
+      pivotY: rect.footY - rect.h * 0.14,
+      angle,
+      scaleX: 1 + breath,
+      scaleY: 1 + breath * 1.7,
+      shiftX: Math.sin(angle) * rect.h * 0.05,
+    };
+  }
+
+  _imagePoint(x, y, transform = this._imageTransform()) {
+    if (!transform) return { x, y };
+    const { rect, pivotX, pivotY, angle, scaleX, scaleY, shiftX } = transform;
+    const sx = rect.footX + (x - rect.footX) * scaleX;
+    const sy = rect.footY + (y - rect.footY) * scaleY;
+    const dx = sx - pivotX;
+    const dy = sy - pivotY;
+    const cos = Math.cos(angle);
+    const sin = Math.sin(angle);
+    return { x: pivotX + dx * cos - dy * sin + shiftX, y: pivotY + dx * sin + dy * cos };
+  }
+
+  _imageLocalPoint(screenX, screenY, rect = this.imageRect()) {
+    const transform = this._imageTransform(rect);
+    if (!transform) return { x: screenX, y: screenY };
+    const { pivotX, pivotY, angle, scaleX, scaleY, shiftX } = transform;
+    const dx = screenX - shiftX - pivotX;
+    const dy = screenY - pivotY;
+    const cos = Math.cos(angle);
+    const sin = Math.sin(angle);
+    const rotatedX = pivotX + dx * cos + dy * sin;
+    const rotatedY = pivotY - dx * sin + dy * cos;
+    return {
+      x: rect.footX + (rotatedX - rect.footX) / scaleX,
+      y: rect.footY + (rotatedY - rect.footY) / scaleY,
+    };
+  }
+
   _imageShapes() {
     const rect = this.imageRect();
     if (!rect) return null;
     const { x, y, w, h } = rect;
-    const cx = x + w / 2;
+    const transform = this._imageTransform(rect);
+    const radiusScale = Math.max(transform.scaleX, transform.scaleY);
     const shapes = [];
-    const at = (part, fx, fy, fr) =>
-      shapes.push({ x: x + w * fx, y: y + h * fy, r: h * fr, part });
+    const at = (part, fx, fy, fr) => {
+      const point = this._imagePoint(x + w * fx, y + h * fy, transform);
+      shapes.push({ x: point.x, y: point.y, r: h * fr * radiusScale, part });
+    };
     at("head", 0.5, 0.16, 0.15);
     at("head", 0.5, 0.24, 0.1);
     at("torso", 0.5, 0.44, 0.15);
@@ -1172,34 +1442,19 @@ export class Doll {
     at("shinL", 0.37, 0.93, 0.08);
     at("legR", 0.62, 0.8, 0.09);
     at("shinR", 0.63, 0.93, 0.08);
-    void cx;
     return shapes;
   }
 
   _drawImageDoll(ctx) {
-    const rect = this.imageRect();
-    if (!rect) {
+    const transform = this._imageTransform();
+    if (!transform) {
       ctx.fillStyle = "rgba(255,255,255,0.2)";
       ctx.fillRect(-40, -200, 80, 200);
       return;
     }
+    const { rect, pivotX, pivotY, angle, scaleX, scaleY, shiftX } = transform;
     const { img, w, h, x, y, footX, footY } = rect;
     const meta = this.dollMeta || {};
-
-    const pivotY = footY - h * 0.14;
-    const angle = this.root.angle * (meta.tip ?? 0.9);
-    const breath = Math.sin(this.time * 2.1) * 0.008;
-    ctx.save();
-    // gentle breathing, anchored at the shoes, so a still photo feels alive
-    ctx.translate(footX, footY);
-    ctx.scale(1 + breath, 1 + breath * 1.7);
-    ctx.translate(-footX, -footY);
-    // tip over like a cardboard cut-out: pivot just above the shoes so both the
-    // head and the feet stay inside the frame when he goes down
-    ctx.translate(footX, pivotY);
-    ctx.rotate(angle);
-    ctx.translate(-footX, -pivotY);
-    ctx.translate(Math.sin(angle) * h * 0.05, 0);
 
     if (meta.shadow !== false) {
       ctx.save();
@@ -1211,6 +1466,16 @@ export class Doll {
       ctx.restore();
     }
 
+    ctx.save();
+    // Apply the same transform to the cut-out, its hit shapes and each injury decal.
+    ctx.translate(footX, footY);
+    ctx.scale(scaleX, scaleY);
+    ctx.translate(-footX, -footY);
+    ctx.translate(pivotX, pivotY);
+    ctx.rotate(angle);
+    ctx.translate(-pivotX, -pivotY);
+    ctx.translate(shiftX, 0);
+
     const flash = this.hitFlash;
     if (flash > 0.02 && "filter" in ctx) {
       ctx.filter = `brightness(${1 + flash * 0.55}) saturate(${1 + flash * 0.6})`;
@@ -1218,13 +1483,95 @@ export class Doll {
     ctx.drawImage(img, x, y, w, h);
     if ("filter" in ctx) ctx.filter = "none";
 
-    // warm rim light so the plush sits in the classroom lighting
     if (meta.rim !== false && !this.reduceGlow) {
       ctx.save();
       ctx.globalCompositeOperation = "lighter";
       ctx.globalAlpha = 0.1;
       ctx.drawImage(img, x, y, w, h);
       ctx.restore();
+    }
+    this._drawImageInjuries(ctx, rect);
+    ctx.restore();
+  }
+
+  _drawImageInjuries(ctx, rect) {
+    for (const injury of this.injuries) {
+      if (injury.space !== "image") continue;
+      const x = rect.x + rect.w * injury.u;
+      const y = rect.y + rect.h * injury.v;
+      const radius = clamp(rect.h * (injury.part === "head" ? 0.045 : 0.036), 9, 25);
+      this._drawInjuryMark(ctx, x, y, radius, injury);
+    }
+  }
+
+  _drawRigInjuries(ctx) {
+    for (const injury of this.injuries) {
+      if (injury.space !== "rig") continue;
+      const node = this.world[injury.nodeKey];
+      if (!node) continue;
+      const localY = injury.localY - (injury.face ? this.B.headR * 0.95 : 0);
+      const point = this._localToWorld(node, injury.localX, localY);
+      const radius = injury.face ? this.B.headR * this.scale * 0.32 : 10 * this.scale;
+      this._drawInjuryMark(ctx, point.x, point.y, radius, injury, node.wa);
+    }
+  }
+
+  /** Soft red swelling, purple bruises and tiny cartoon blood marks. */
+  _drawInjuryMark(ctx, x, y, radius, injury, angle = injury.rot || 0) {
+    const fade = Math.max(0.38, 1 - (injury.age || 0) / 50);
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.rotate(angle);
+
+    const redAlpha = (0.18 + (injury.redness || 0) * 0.22) * fade;
+    const red = ctx.createRadialGradient(-radius * 0.18, -radius * 0.08, radius * 0.08, 0, 0, radius * 1.35);
+    red.addColorStop(0, `rgba(239,54,65,${redAlpha})`);
+    red.addColorStop(0.6, `rgba(224,54,65,${redAlpha * 0.58})`);
+    red.addColorStop(1, "rgba(224,54,65,0)");
+    ctx.fillStyle = red;
+    ctx.beginPath();
+    ctx.ellipse(0, 0, radius * 1.3, radius * 0.82, 0, 0, TAU);
+    ctx.fill();
+
+    if (injury.bruise) {
+      const bruiseAlpha = (0.28 + (injury.intensity || 0.3) * 0.38) * fade;
+      const bruise = ctx.createRadialGradient(0, 0, radius * 0.08, 0, 0, radius);
+      bruise.addColorStop(0, `rgba(80,24,76,${bruiseAlpha})`);
+      bruise.addColorStop(0.58, `rgba(143,39,83,${bruiseAlpha * 0.8})`);
+      bruise.addColorStop(1, "rgba(175,45,73,0)");
+      ctx.fillStyle = bruise;
+      ctx.beginPath();
+      ctx.ellipse(0, 0, radius, radius * 0.68, 0.08, 0, TAU);
+      ctx.fill();
+      ctx.fillStyle = `rgba(56,20,65,${bruiseAlpha * 0.45})`;
+      ctx.beginPath();
+      ctx.ellipse(-radius * 0.12, radius * 0.08, radius * 0.36, radius * 0.2, -0.2, 0, TAU);
+      ctx.fill();
+    }
+
+    if (injury.blood) {
+      const bloodAlpha = fade * 0.92;
+      ctx.lineCap = "round";
+      ctx.strokeStyle = `rgba(112,12,31,${bloodAlpha})`;
+      ctx.lineWidth = Math.max(2.2, radius * 0.2);
+      ctx.beginPath();
+      ctx.moveTo(-radius * 0.42, -radius * 0.08);
+      ctx.quadraticCurveTo(-radius * 0.04, radius * 0.28, radius * 0.42, -radius * 0.12);
+      ctx.stroke();
+      ctx.strokeStyle = `rgba(245,87,101,${bloodAlpha * 0.78})`;
+      ctx.lineWidth = Math.max(1.1, radius * 0.075);
+      ctx.beginPath();
+      ctx.moveTo(-radius * 0.3, -radius * 0.12);
+      ctx.quadraticCurveTo(0, radius * 0.1, radius * 0.28, -radius * 0.14);
+      ctx.stroke();
+      for (const [dx, dy, size] of [[radius * 0.48, radius * 0.54, 0.26], [-radius * 0.46, radius * 0.42, 0.2]]) {
+        ctx.fillStyle = `rgba(160,18,42,${bloodAlpha})`;
+        ctx.beginPath();
+        ctx.moveTo(dx, dy - radius * size);
+        ctx.quadraticCurveTo(dx + radius * size, dy, dx, dy + radius * size * 1.4);
+        ctx.quadraticCurveTo(dx - radius * size, dy, dx, dy - radius * size);
+        ctx.fill();
+      }
     }
     ctx.restore();
   }

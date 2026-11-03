@@ -163,9 +163,9 @@ test("client boots, renders frames and opens every sheet", async () => {
   };
   const responses = {
     "/api/config": config,
-    "/api/session": { ok: true, demo: true, player: { id: 0, name: "Guest" }, rank: null },
-    "/api/score": { ok: true, accepted: false },
-    "/api/leaderboard": { ok: true, rows: [{ place: 1, id: 7, name: "Someone", totalDamage: 10, bestRound: 10, bestCombo: 3 }] },
+    "/api/session": { ok: true, demo: true, player: { id: -123, name: "Guest 123" }, rank: 1 },
+    "/api/score": { ok: true, demo: true, accepted: true },
+    "/api/leaderboard": { ok: true, rows: [{ place: 1, id: -123, name: "Guest 123", totalDamage: 10, bestRound: 10, bestCombo: 3 }] },
     "/api/stats": { ok: true, stats: { players: 1, damage: 10, kos: 0, rounds: 1 } },
   };
   window.fetch = async (url) => ({
@@ -214,6 +214,7 @@ test("client boots, renders frames and opens every sheet", async () => {
     assert.ok(app, "app handle is exposed");
     assert.ok(app.game, "game instance exists");
     assert.equal(app.store.state.coins, 250);
+    assert.equal(app.playerId, -123, "preview session receives a stable anonymous leaderboard profile");
 
     // the plush character is the default body
     assert.equal(app.store.state.cosmetics.doll, "professor-plush", "plush doll is default");
@@ -258,6 +259,23 @@ test("client boots, renders frames and opens every sheet", async () => {
     await new Promise((resolve) => setTimeout(resolve, 500));
     assert.equal(game.hp, hpBefore, "preview swing deals no damage");
 
+    // pointer gesture: tap still attacks; a body drag follows the finger and release flings it
+    const torso = game.doll.shapes.find((shape) => shape.part === "torso");
+    assert.ok(torso, "doll exposes draggable hit shapes");
+    const pointer = (type, x, y) => {
+      const event = new window.MouseEvent(type, { bubbles: true, cancelable: true, clientX: x, clientY: y });
+      Object.defineProperty(event, "pointerId", { value: 91 });
+      return event;
+    };
+    dom.window.document.getElementById("game").dispatchEvent(pointer("pointerdown", torso.x, torso.y));
+    dom.window.document.getElementById("game").dispatchEvent(pointer("pointermove", torso.x + 70, torso.y - 35));
+    dom.window.document.getElementById("game").dispatchEvent(pointer("pointermove", torso.x + 145, torso.y - 75));
+    dom.window.document.getElementById("game").dispatchEvent(pointer("pointerup", torso.x + 145, torso.y - 75));
+    assert.equal(game.pointer.down, false, "pointer is released after the gesture");
+    assert.equal(game.doll.dragging, false, "doll is released after the gesture");
+    assert.equal(game.doll.ragdoll, true, "dragging switches the doll into ragdoll flight");
+    assert.ok(game.doll.root.vx > 0 && game.doll.root.vy < 0, "flick velocity is carried into the throw");
+
     // every sheet builds without throwing
     for (const id of ["btnShop", "btnStudio", "btnSettings", "btnBoard"]) {
       const button = window.document.getElementById(id);
@@ -268,6 +286,10 @@ test("client boots, renders frames and opens every sheet", async () => {
       const body = window.document.getElementById("modalBody");
       assert.equal(root.hidden, false, `${id} opens the sheet`);
       assert.ok(body.children.length > 0, `${id} renders content`);
+
+      if (id === "btnBoard") {
+        assert.ok(body.querySelector(".lb-row.me"), "preview leaderboard highlights this browser's guest row");
+      }
 
       if (id === "btnShop") {
         // the long list that used to be un-scrollable
@@ -294,6 +316,13 @@ test("client boots, renders frames and opens every sheet", async () => {
     const fatal = errors.filter((error) => error && !/Not implemented: (HTMLCanvasElement|window\.scrollTo)/.test(String(error.message)));
     assert.deepEqual(fatal.map((error) => error.message), [], "no runtime errors");
   } finally {
+    // Stop the canvas RAF loop explicitly so Node's test worker can exit cleanly.
+    try {
+      window.__KTP__?.game?.stop();
+      window.__KTP__?.audio?.stopMusic();
+    } catch {
+      // boot may have failed before the game was constructed
+    }
     for (const [key, descriptor] of Object.entries(previous)) {
       if (!descriptor) delete globalThis[key];
       else Object.defineProperty(globalThis, key, descriptor);

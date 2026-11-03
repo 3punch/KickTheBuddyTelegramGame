@@ -58,7 +58,17 @@ export class Game {
     this.raf = 0;
     this.hudTimer = 0;
     this.hudDirty = true;
-    this.pointer = { x: 0, y: 0, down: false };
+    this.pointer = {
+      x: 0,
+      y: 0,
+      down: false,
+      pointerId: null,
+      grabbed: false,
+      dragging: false,
+      startX: 0,
+      startY: 0,
+      samples: [],
+    };
     this.dpr = 1;
     this.width = 0;
     this.height = 0;
@@ -179,17 +189,44 @@ export class Game {
       const rect = canvas.getBoundingClientRect();
       return { x: event.clientX - rect.left, y: event.clientY - rect.top };
     };
+    const addSample = (x, y) => {
+      const now = performance.now();
+      const samples = this.pointer.samples;
+      samples.push({ x, y, time: now });
+      while (samples.length > 2 && now - samples[0].time > 140) samples.shift();
+      if (samples.length > 7) samples.shift();
+    };
+    const samePointer = (event) =>
+      this.pointer.pointerId === null || event.pointerId === undefined || event.pointerId === this.pointer.pointerId;
 
     canvas.addEventListener("pointerdown", (event) => {
+      if (this.pointer.down) return;
       event.preventDefault();
       canvas.setPointerCapture?.(event.pointerId);
       const { x, y } = pos(event);
-      this.pointer.down = true;
-      this.pointer.x = x;
-      this.pointer.y = y;
+      Object.assign(this.pointer, {
+        down: true,
+        pointerId: event.pointerId ?? null,
+        grabbed: false,
+        dragging: false,
+        startX: x,
+        startY: y,
+        x,
+        y,
+        samples: [],
+      });
+      addSample(x, y);
       this.doll.setPointer(x, y);
       this.started = true;
-      this.attack(this.weaponId, x, y);
+
+      const hit = this.doll.hitTest(x, y, 54);
+      if (hit) {
+        this.pointer.grabbed = true;
+        this.pointer.part = hit.part;
+        this.doll.beginDrag(x, y);
+      } else {
+        this.attack(this.weaponId, x, y);
+      }
     });
 
     canvas.addEventListener("pointermove", (event) => {
@@ -197,15 +234,58 @@ export class Game {
       this.pointer.x = x;
       this.pointer.y = y;
       this.doll.setPointer(x, y);
-      if (this.pointer.down) this.attack(this.weaponId, x, y, { dragging: true });
+      if (!this.pointer.down || !samePointer(event)) return;
+      addSample(x, y);
+
+      if (this.pointer.grabbed) {
+        const distance = Math.hypot(x - this.pointer.startX, y - this.pointer.startY);
+        if (!this.pointer.dragging && distance > 7) this.pointer.dragging = true;
+        if (this.pointer.dragging) this.doll.dragTo(x, y);
+      } else {
+        this.attack(this.weaponId, x, y, { dragging: true });
+      }
     });
 
-    const release = () => {
+    const release = (event, cancelled = false) => {
+      if (!this.pointer.down || (event && !samePointer(event))) return;
+      const { x, y } = event ? pos(event) : this.pointer;
+      this.pointer.x = x;
+      this.pointer.y = y;
+      this.doll.setPointer(x, y);
+      if (this.pointer.grabbed) {
+        if (this.pointer.dragging) {
+          addSample(x, y);
+          const samples = this.pointer.samples;
+          const end = samples[samples.length - 1] || { x, y, time: performance.now() };
+          const cutoff = end.time - 110;
+          const start = samples.find((sample) => sample.time >= cutoff) || samples[Math.max(0, samples.length - 2)] || end;
+          const seconds = Math.max(0.016, (end.time - start.time) / 1000);
+          let vx = ((end.x - start.x) / seconds) * 0.92;
+          let vy = ((end.y - start.y) / seconds) * 0.92;
+          const speed = Math.hypot(vx, vy);
+          if (speed > 1700) {
+            const ratio = 1700 / speed;
+            vx *= ratio;
+            vy *= ratio;
+          }
+          this.doll.fling(cancelled ? vx * 0.65 : vx, cancelled ? vy * 0.65 : vy);
+          haptic(speed > 500 ? "medium" : "light");
+        } else {
+          this.doll.cancelDrag();
+          if (!cancelled && !this.koActive) this.attack(this.weaponId, x, y);
+        }
+      }
       this.pointer.down = false;
+      this.pointer.pointerId = null;
+      this.pointer.grabbed = false;
+      this.pointer.dragging = false;
+      this.pointer.samples = [];
     };
-    canvas.addEventListener("pointerup", release);
-    canvas.addEventListener("pointercancel", release);
-    canvas.addEventListener("pointerleave", release);
+
+    // Pointer capture keeps a flick alive outside the canvas; window listeners
+    // are the fallback for browsers that do not implement capture.
+    window.addEventListener("pointerup", (event) => release(event));
+    window.addEventListener("pointercancel", (event) => release(event, true));
     canvas.addEventListener("contextmenu", (event) => event.preventDefault());
   }
 
@@ -353,9 +433,10 @@ export class Game {
     }
 
     const power = clamp(damage / 220, 0.5, 3.2);
-    this.doll.hurt(damage, { x: hitX, y: hitY, part }, (weapon.knock || 1) * mult, {
+    const injury = this.doll.hurt(damage, { x: hitX, y: hitY, part }, (weapon.knock || 1) * mult, {
       heavy: Boolean(weapon.stun),
     });
+    if (injury?.bloodBurst) this.effects.splatter(hitX, hitY, Math.min(9, 3 + Math.ceil(power * 2)));
     if (weapon.stun) this.doll.stun = Math.max(this.doll.stun, weapon.stun);
 
     const angle = Math.atan2(hitY - this.doll.basePosition.y, hitX - this.doll.basePosition.x);
@@ -367,6 +448,7 @@ export class Game {
       zap: "#a9e6ff",
       foam: "#d8f4ff",
       boom: "#ffb37a",
+      sonic: "#88e7ff",
     };
     this.effects.impact(hitX, hitY, {
       power,
@@ -379,6 +461,10 @@ export class Game {
     }
     if (weapon.style === "zap") this.effects.zap(hitX + 150, this.height * 0.2, hitX, hitY);
     if (weapon.style === "foam") this.effects.foam(hitX, hitY);
+    if (weapon.style === "sonic") {
+      this.effects.shockwave(hitX, hitY, colors.sonic);
+      if (weapon.id === "bell") this.effects.word(hitX, hitY - 38, "DING!", { color: colors.sonic, size: 18, life: 0.7 });
+    }
     if (weapon.style === "boom") {
       this.effects.shockwave(hitX, hitY, "#ffcf7a");
       this.effects.confetti(hitX, hitY, 16);
@@ -457,6 +543,7 @@ export class Game {
 
   _endKo() {
     this.koActive = false;
+    this.doll.finishKnockout();
     this.roundNumber += 1;
     this.round = this._freshRound();
     this.hp = this.maxHp;

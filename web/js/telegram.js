@@ -1,6 +1,35 @@
 /* Telegram Mini App bridge with graceful web fallback. */
 
 const tg = typeof window !== "undefined" ? window.Telegram?.WebApp : null;
+const PREVIEW_GUEST_KEY = "ktp.preview.guest.v1";
+let cachedPreviewGuestId = null;
+
+/** Stable anonymous browser key used only when the server is in preview mode. */
+export function previewGuestId() {
+  if (cachedPreviewGuestId) return cachedPreviewGuestId;
+  try {
+    const existing = localStorage.getItem(PREVIEW_GUEST_KEY);
+    if (existing && /^[a-z0-9-]{16,80}$/i.test(existing)) {
+      cachedPreviewGuestId = existing;
+      return existing;
+    }
+  } catch {
+    // Private mode / blocked storage: keep an in-memory id for this page load.
+  }
+  const secure = globalThis.crypto;
+  cachedPreviewGuestId = secure?.randomUUID?.() || (() => {
+    const bytes = new Uint8Array(16);
+    if (secure?.getRandomValues) secure.getRandomValues(bytes);
+    else for (let i = 0; i < bytes.length; i += 1) bytes[i] = Math.floor(Math.random() * 256);
+    return [...bytes].map((byte) => byte.toString(16).padStart(2, "0")).join("");
+  })();
+  try {
+    localStorage.setItem(PREVIEW_GUEST_KEY, cachedPreviewGuestId);
+  } catch {
+    // Session still works; it just will not survive a reload without storage.
+  }
+  return cachedPreviewGuestId;
+}
 
 export const isTelegram = Boolean(tg && tg.initData);
 export const platform = tg?.platform || "web";

@@ -46,10 +46,11 @@ npm run live         # ...or: HTTPS tunnel + webhook + menu button in one comman
 ```
 
 Open `http://localhost:8080` in any browser (phone or desktop) and it plays
-immediately in **preview mode**: no bot token required, the leaderboard uses a
-throwaway guest identity, everything else works — attacking, weapons, coins,
-upgrades, Studio face/background/voice swaps. On a desktop browser the game is
-framed like a phone so the layout stays true to the Telegram viewport.
+immediately in **preview mode**: no bot token required. The leaderboard saves
+scores under a stable anonymous guest ID for that browser; Telegram mode uses
+verified player identities. Drag the Professor around and flick to toss him,
+then tap to hit with the expanded 24-item arsenal. On desktop the game is framed
+like a phone so the layout stays true to the Telegram viewport.
 
 To share it with someone, expose the port with a tunnel (`ngrok http 8080`,
 `cloudflared tunnel --url http://localhost:8080`) — the same URL doubles as your
@@ -180,13 +181,15 @@ docs/                   asset guide, deployment guide, previews
 | `GET` | `/api/health` | liveness + bot status |
 | `GET` | `/api/config` | demo mode, start coins, **asset manifest** |
 | `POST` | `/api/session` | verify `initData`, upsert player, return rank |
-| `POST` | `/api/score` | record a round (HMAC-verified, rate-limited) |
+| `POST` | `/api/score` | record a round (HMAC-verified in Telegram, anonymous guest ID in preview; rate-limited) |
 | `GET` | `/api/leaderboard?period=all\|week&limit=20` | rankings |
 | `GET` | `/api/stats` | global totals |
 | `POST` | `/telegram/webhook/:secret` | Telegram updates |
 
-Scores are tied to a verified Telegram user; the client sends
-`X-Telegram-Init-Data` on every call.
+With `BOT_TOKEN`, score submissions are tied to Telegram's verified `initData`.
+Without it, preview mode stores scores under a server-generated anonymous guest
+profile keyed to the browser's random local ID. Preview identities are not
+verified and should not be treated as a production anti-cheat system.
 
 ---
 
@@ -217,7 +220,7 @@ that attacks connect, the K.O. → next-round flow works and every sheet
 * The built-in voice is synthesised in the browser (no TTS service) — it sounds
   like a cartoon mumble, deliberately. For realistic lines use an uploaded voice
   pack or the in-game recorder.
-* Preview mode (no `BOT_TOKEN`) never writes to the leaderboard — by design.
+* Preview mode (no `BOT_TOKEN`) writes anonymous guest scores to the SQLite leaderboard so the Rank screen can be tested in a regular browser. Add a bot token before using rankings as verified public results.
 
 ## License
 
