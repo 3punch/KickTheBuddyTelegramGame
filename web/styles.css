@@ -618,7 +618,7 @@ canvas#game {
 
 .modal-body {
   /* flex child of a capped column: without min-height:0 it refuses to shrink
-     and long lists (e.g. 18 weapons in the Shop) get clipped instead of
+     and long lists (e.g. 24 weapons in the Shop) get clipped instead of
      scrolling. This is the actual scroll fix. */
   flex: 1 1 auto;
   min-height: 0;

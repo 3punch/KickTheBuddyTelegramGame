@@ -169,7 +169,7 @@ Want a permanent shareable link like `t.me/your_bot/play`? In BotFather:
 | Mini App opens blank / spins | Open `https://your-url/` in a browser. If that fails, the tunnel died or the proxy isn't forwarding. |
 | "Button URL is invalid" | `PUBLIC_URL` isn't `https://` (or the certificate is broken). |
 | Webhook 401/403 in logs | `WEBHOOK_SECRET` changed → just restart (the server re-registers it). |
-| Scores not appearing on the leaderboard | You must open the game **from Telegram** (not the browser tab) or the server runs in preview mode because `BOT_TOKEN` is missing. |
+| Telegram scores not appearing | Open the game **from Telegram** and confirm the server has `BOT_TOKEN`; browser preview scores are saved under anonymous guest IDs instead. |
 | Tunnel URL changed after a restart | Update `PUBLIC_URL`, restart, done. |
 | Sound doesn't play | Browsers/WebViews require a tap first — the first hit unlocks audio. |
 | Mic recording blocked | Needs HTTPS (works inside Telegram, not on plain `http://`). |

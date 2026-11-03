@@ -26,7 +26,8 @@ const TEXTS = {
     start: (name) =>
       `🥊 <b>Kick the Professor</b>\n\n` +
       `Hey ${name}! The Professor is back in class and he deserves a lesson.\n\n` +
-      `• Kick, punch and swing <b>9 weapons</b>\n` +
+      `• Kick, punch and swing <b>24 weapons</b>\n` +
+      `• Drag, flick and toss the Professor around\n` +
       `• Break his HP, score combos, earn coins\n` +
       `• Upgrade your power and unlock new gear\n` +
       `• Swap his face, the background and the voice in the <b>Studio</b>\n\n` +
@@ -45,7 +46,8 @@ const TEXTS = {
     start: (name) =>
       `🥊 <b>اضرب البروفيسور</b>\n\n` +
       `أهلاً ${name}! عاد البروفيسور إلى الصف ويستحق درساً لن ينساه.\n\n` +
-      `• ركل ولكم و<b>٩ أسلحة</b>\n` +
+      `• ركل ولكم و<b>٢٤ سلاحاً</b>\n` +
+      `• اسحب البروفيسور وأفلته ليرتطم في الصف\n` +
       `• حطّم نقاط صحته، اصنع كومبو، واجمع العملات\n` +
       `• طوّر قوتك وافتح أسلحة جديدة\n` +
       `• غيّر وجهه والخلفية والصوت من <b>الاستوديو</b>\n\n` +
@@ -64,7 +66,8 @@ const TEXTS = {
     start: (name) =>
       `🥊 <b>Kick den Professor</b>\n\n` +
       `Hallo ${name}! Der Professor ist zurück und hat eine Abreibung verdient.\n\n` +
-      `• Kicken, boxen und <b>9 Waffen</b> nutzen\n` +
+      `• Kicken, boxen und <b>24 Waffen</b> nutzen\n` +
+      `• Den Professor ziehen, schnippen und werfen\n` +
       `• HP zerstören, Combos bauen, Münzen sammeln\n` +
       `• Kraft verbessern und Ausrüstung freischalten\n` +
       `• Gesicht, Hintergrund und Stimme im <b>Studio</b> tauschen\n\n` +

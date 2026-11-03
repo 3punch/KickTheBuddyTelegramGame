@@ -7,6 +7,7 @@ import {
   initData,
   haptic,
   platform,
+  previewGuestId,
 } from "./telegram.js";
 import { setLang, applyTranslations, t, fmt } from "./i18n.js";
 import { fetchConfig, loadImage, findAsset } from "./assets.js";
@@ -41,6 +42,7 @@ const dom = {
 let manifest = { backgrounds: [], faces: [], dolls: [], voicePacks: [] };
 let demoMode = true;
 let game = null;
+let playerId = null;
 let lastCoins = 0;
 let bestSeen = 0;
 let currentLang = "en";
@@ -369,6 +371,7 @@ const baseCtx = () => ({
   manifest,
   demoMode,
   game,
+  playerId,
   applyCosmetics,
   applyVoice,
   applySettings,
@@ -473,6 +476,8 @@ async function submitScore(result) {
         damage: result.damage,
         combo: result.combo,
         kos: result.kos || 0,
+        lang: displayLang(),
+        ...(demoMode ? { guestId: previewGuestId() } : {}),
       }),
     });
   } catch {
@@ -488,11 +493,15 @@ async function startSession() {
         "Content-Type": "application/json",
         "X-Telegram-Init-Data": initData(),
       },
-      body: JSON.stringify({ lang: displayLang() }),
+      body: JSON.stringify({
+        lang: displayLang(),
+        ...(demoMode ? { guestId: previewGuestId() } : {}),
+      }),
     });
     if (!res.ok) return;
     const data = await res.json();
-    if (data.player && data.player.name) {
+    playerId = data.player?.id ?? null;
+    if (!demoMode && data.player?.name) {
       const nameEl = document.getElementById("hudName");
       if (nameEl) nameEl.textContent = data.player.name;
     }
@@ -518,6 +527,9 @@ window.__KTP__ = {
   audio,
   get manifest() {
     return manifest;
+  },
+  get playerId() {
+    return playerId;
   },
   platform,
   closeModal,

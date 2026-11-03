@@ -138,6 +138,27 @@ export class Effects {
     }
   }
 
+  /** Small, stylised droplets on heavy/repeated hits; never photorealistic. */
+  splatter(x, y, count = 5) {
+    for (let i = 0; i < count; i += 1) {
+      const a = rand(-Math.PI * 0.94, Math.PI * 0.94);
+      const speed = rand(90, 280);
+      this._push({
+        type: "blood",
+        x: x + rand(-4, 4),
+        y: y + rand(-4, 4),
+        vx: Math.cos(a) * speed,
+        vy: Math.sin(a) * speed - 55,
+        g: 620,
+        life: rand(0.28, 0.58),
+        size: rand(2.2, 5.4),
+        color: pick(["#b11232", "#d5243f", "#8f1830"]),
+        rot: a,
+        drag: 1.9,
+      });
+    }
+  }
+
   foam(x, y) {
     for (let i = 0; i < 22; i += 1) {
       this._push({
@@ -277,6 +298,17 @@ export class Effects {
           ctx.fillStyle = p.color;
           ctx.beginPath();
           ctx.arc(p.x, p.y, p.size * (0.7 + t * 0.9), 0, TAU);
+          ctx.fill();
+          break;
+        }
+        case "blood": {
+          ctx.translate(p.x, p.y);
+          ctx.rotate(p.rot);
+          ctx.fillStyle = p.color;
+          ctx.beginPath();
+          ctx.moveTo(0, -p.size * 0.95);
+          ctx.quadraticCurveTo(p.size * 0.8, -p.size * 0.08, 0, p.size * 0.8);
+          ctx.quadraticCurveTo(-p.size * 0.8, -p.size * 0.08, 0, -p.size * 0.95);
           ctx.fill();
           break;
         }

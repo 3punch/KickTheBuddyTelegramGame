@@ -2,7 +2,7 @@
  * Regression guard for the bottom-sheet scroll contract.
  *
  * Bug history: `.modal-body` had `overflow-y: auto` but was a flex child of a
- * height-capped column without `min-height: 0`, so long lists (18 weapons in
+ * height-capped column without `min-height: 0`, so long lists (24 weapons in
  * the Shop, the voice studio, the leaderboard) were clipped instead of
  * scrolling on phones and inside the Telegram WebView.
  *

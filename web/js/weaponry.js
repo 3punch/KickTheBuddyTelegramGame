@@ -653,6 +653,160 @@ const RIGS = {
     rr(ctx, 132, -11, 22, 22, 5);
     fillStroke(ctx, "#2b2f3d");
   },
+
+  /* over-sized textbook */
+  book(ctx) {
+    arm(ctx, { from: 58, to: 132, w: 22 });
+    ctx.save();
+    ctx.rotate(-0.08);
+    rr(ctx, -54, -38, 88, 76, 7);
+    fillStroke(ctx, "#b72f3c");
+    rr(ctx, -47, -31, 72, 62, 4);
+    fillStroke(ctx, "#f1e5c9", 2.4);
+    ctx.strokeStyle = "rgba(117,91,58,0.45)";
+    ctx.lineWidth = 1.6;
+    for (let i = 0; i < 5; i += 1) {
+      ctx.beginPath();
+      ctx.moveTo(-37, -20 + i * 10);
+      ctx.lineTo(18, -20 + i * 10);
+      ctx.stroke();
+    }
+    ctx.fillStyle = "#e0b943";
+    ctx.font = "900 10px system-ui";
+    ctx.textAlign = "center";
+    ctx.fillText("SCIENCE", -10, 2);
+    ctx.restore();
+  },
+
+  /* chalkboard eraser, puffing a little chalk dust */
+  eraser(ctx) {
+    arm(ctx, { from: 62, to: 132, w: 23 });
+    rr(ctx, -38, -28, 78, 56, 9);
+    fillStroke(ctx, "#76523c");
+    rr(ctx, -31, -20, 64, 36, 6);
+    fillStroke(ctx, "#3f4855", 2.5);
+    ctx.fillStyle = "rgba(255,255,255,0.62)";
+    ctx.font = "800 8px system-ui";
+    ctx.textAlign = "center";
+    ctx.fillText("CHALK", 0, 4);
+    for (let i = 0; i < 3; i += 1) {
+      circle(ctx, -34 - i * 8, -25 + i * 8, 4 + i);
+      ctx.fillStyle = "rgba(235,244,255,0.8)";
+      ctx.fill();
+    }
+  },
+
+  /* squeaky rubber chicken */
+  chicken(ctx) {
+    arm(ctx, { from: 70, to: 134, w: 21 });
+    ctx.beginPath();
+    ctx.ellipse(4, 13, 34, 21, -0.12, 0, TAU);
+    fillStroke(ctx, "#f4d647");
+    ctx.beginPath();
+    ctx.moveTo(12, -1);
+    ctx.quadraticCurveTo(22, -34, -4, -42);
+    ctx.quadraticCurveTo(-25, -44, -26, -26);
+    ctx.quadraticCurveTo(-12, -11, 12, -1);
+    ctx.closePath();
+    fillStroke(ctx, "#ffe15c");
+    // beak and googly eye
+    ctx.beginPath();
+    ctx.moveTo(-26, -31);
+    ctx.lineTo(-48, -25);
+    ctx.lineTo(-27, -18);
+    ctx.closePath();
+    fillStroke(ctx, "#ed8739", 2.6);
+    circle(ctx, -18, -36, 5.5);
+    fillStroke(ctx, "#fff", 2);
+    circle(ctx, -19, -36, 2.2);
+    ctx.fillStyle = "#191a22";
+    ctx.fill();
+    // wing + feet
+    ctx.beginPath();
+    ctx.ellipse(10, 8, 18, 8, -0.25, 0, TAU);
+    ctx.fillStyle = "#e9c234";
+    ctx.fill();
+    ctx.strokeStyle = "#b88d19";
+    ctx.lineWidth = 2;
+    ctx.stroke();
+    ctx.strokeStyle = "#e97734";
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.moveTo(0, 30);
+    ctx.lineTo(-3, 39);
+    ctx.lineTo(-11, 39);
+    ctx.moveTo(13, 29);
+    ctx.lineTo(14, 38);
+    ctx.lineTo(22, 38);
+    ctx.stroke();
+  },
+
+  /* folded paper airplane */
+  paperplane(ctx) {
+    ctx.beginPath();
+    ctx.moveTo(-48, 0);
+    ctx.lineTo(52, -26);
+    ctx.lineTo(24, 0);
+    ctx.lineTo(52, 26);
+    ctx.closePath();
+    fillStroke(ctx, "#f2f6ff", 3);
+    ctx.beginPath();
+    ctx.moveTo(-48, 0);
+    ctx.lineTo(24, 0);
+    ctx.lineTo(4, 13);
+    ctx.closePath();
+    ctx.fillStyle = "#c9d9f4";
+    ctx.fill();
+    ctx.strokeStyle = "rgba(79,100,139,0.55)";
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(-48, 0);
+    ctx.lineTo(20, -2);
+    ctx.stroke();
+  },
+
+  /* ringing classroom bell */
+  bell(ctx) {
+    arm(ctx, { from: 66, to: 132, w: 22 });
+    rr(ctx, -4, 20, 56, 12, 5);
+    fillStroke(ctx, "#8b5a21");
+    ctx.beginPath();
+    ctx.moveTo(-12, 18);
+    ctx.quadraticCurveTo(-14, -20, 18, -28);
+    ctx.quadraticCurveTo(48, -19, 44, 18);
+    ctx.closePath();
+    fillStroke(ctx, "#ffc847");
+    circle(ctx, 17, -31, 8);
+    fillStroke(ctx, "#ffe58a", 2.5);
+    ctx.strokeStyle = "rgba(255,229,138,0.9)";
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.arc(17, -1, 36, -2.65, -0.55);
+    ctx.stroke();
+  },
+
+  /* classroom megaphone */
+  megaphone(ctx) {
+    arm(ctx, { from: 70, to: 132, w: 22 });
+    ctx.beginPath();
+    ctx.moveTo(-48, -26);
+    ctx.lineTo(36, -13);
+    ctx.lineTo(36, 13);
+    ctx.lineTo(-48, 26);
+    ctx.closePath();
+    fillStroke(ctx, "#48a5d6");
+    rr(ctx, 24, -14, 18, 28, 3);
+    fillStroke(ctx, "#d7f1ff", 2.5);
+    rr(ctx, 4, 12, 16, 30, 5);
+    fillStroke(ctx, "#37799f", 2.5);
+    ctx.strokeStyle = "#b8efff";
+    ctx.lineWidth = 3;
+    for (let i = 0; i < 3; i += 1) {
+      ctx.beginPath();
+      ctx.arc(-46, 0, 38 + i * 12, -0.62, 0.62);
+      ctx.stroke();
+    }
+  },
 };
 
 export const RIG_NAMES = Object.keys(RIGS);
@@ -677,6 +831,12 @@ export const RIG_BOUNDS = {
   rocket: [-44, -34, 122, 34],
   anvil: [-32, -28, 82, 48],
   guitar: [-20, -38, 160, 38],
+  book: [-56, -42, 138, 42],
+  eraser: [-42, -32, 138, 32],
+  chicken: [-52, -48, 140, 44],
+  paperplane: [-52, -30, 58, 30],
+  bell: [-18, -40, 138, 38],
+  megaphone: [-62, -72, 142, 44],
 };
 
 export function drawRig(ctx, rig, opts = {}) {

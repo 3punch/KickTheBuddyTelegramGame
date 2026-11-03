@@ -8,7 +8,7 @@ import { audio } from "./audio.js";
 const medals = ["🥇", "🥈", "🥉"];
 
 export function buildBoard(ctx) {
-  const { store, demoMode } = ctx;
+  const { store, demoMode, playerId } = ctx;
   let period = "all";
   let rows = null;
   let stats = null;
@@ -53,9 +53,10 @@ export function buildBoard(ctx) {
         ])
       );
     }
+    if (demoMode) listNode.append(el("div", { class: "hintline", text: t("demoNote"), style: { marginBottom: "12px" } }));
 
     if (error) {
-      listNode.append(el("div", { class: "hintline", text: demoMode ? t("demoNote") : "Could not load the leaderboard." }));
+      listNode.append(el("div", { class: "hintline", text: "Could not load the leaderboard." }));
       listNode.append(
         button("↻ Retry", { variant: "ghost", onClick: () => load() })
       );
@@ -68,7 +69,7 @@ export function buildBoard(ctx) {
     if (!rows.length) {
       listNode.append(el("div", { class: "hintline", text: t("noScores") }));
     }
-    const me = tgUser()?.id;
+    const me = playerId ?? tgUser()?.id;
     rows.forEach((row) => {
       const mine = me && row.id === me;
       listNode.append(
